@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "298990602880",
+    "project_id": "aimr-twin-studio",
+    "storage_bucket": "aimr-twin-studio.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:298990602880:android:f53d8823bcd7cd05297465",
+        "android_client_info": {
+          "package_name": "com.example.ai_video_image_generation_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "298990602880-gi7hnq9ro20almluto74ol3eup68sfbm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBe5B5PXewFvpaxIg-XjnCJ95K12XR3kg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "298990602880-gi7hnq9ro20almluto74ol3eup68sfbm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

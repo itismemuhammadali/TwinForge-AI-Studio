@@ -1,0 +1,49 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'screens/splash_screen.dart';
+import 'providers/auth_provider.dart';
+import 'providers/content_provider.dart';
+import 'providers/user_provider.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  // Run app immediately — Firebase init happens inside SplashScreen
+  runApp(const AimrTwinApp());
+}
+
+class AimrTwinApp extends StatelessWidget {
+  const AimrTwinApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ContentProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+      ],
+      child: MaterialApp(
+        title: 'Twinora',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: const Color(0xFF121212),
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFFB1946C),
+            surface: Color(0xFF1A1A1A),
+          ),
+        ),
+        home: const SplashScreen(),
+      ),
+    );
+  }
+}

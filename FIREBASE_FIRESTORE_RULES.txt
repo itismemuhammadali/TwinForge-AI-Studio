@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===== EXISTING WEBSITE RULES (DO NOT REMOVE) =====
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow account creation with required profile fields
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'email', 'name', 'createdAt']);
+      
+      // Allow usage counter updates with strict limits to prevent cheating
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imagesUsedToday', 'usageDate'])
+        && (
+          // New day: reset counter (capped at 4 — max single batch)
+          (resource.data.usageDate != request.resource.data.usageDate
+            && request.resource.data.imagesUsedToday >= 0
+            && request.resource.data.imagesUsedToday <= 4)
+          // Same day: can only increment, max 4 per write, hard cap at 16
+          || (resource.data.usageDate == request.resource.data.usageDate
+            && request.resource.data.imagesUsedToday >= resource.data.imagesUsedToday
+            && (request.resource.data.imagesUsedToday - resource.data.imagesUsedToday) <= 4
+            && request.resource.data.imagesUsedToday <= 16)
+        );
+      
+      allow delete: if false;
+
+      // ===== NEW MOBILE APP RULES =====
+      
+      // Allow profile updates (displayName, bio, gender, etc.)
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'bio', 'gender', 'profileImage', 'phone', 'location', 'lastUpdated'
+        ]);
+
+      // Allow password change tracking
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['passwordChangedAt']);
+
+      // Allow subscription/plan updates
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'subscription', 'plan', 'credits', 'planExpiry', 'planStartDate', 'planUpdatedAt'
+        ]);
+
+      // Subcollection: Generated Images
+      match /generatedImages/{imageId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.keys().hasAll(['imageUrl', 'prompt', 'createdAt', 'gender', 'outfit', 'location']);
+        allow update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tags', 'favorite', 'updatedAt']);
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Subcollection: Generated Videos
+      match /generatedVideos/{videoId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.keys().hasAll(['videoUrl', 'type', 'createdAt', 'status']);
+        allow update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'tags', 'favorite', 'updatedAt']);
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Subcollection: User Preferences
+      match /preferences/{prefId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Subcollection: Notifications
+      match /notifications/{notificationId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ===== PLANS/SUBSCRIPTION COLLECTION =====
+    match /plans/{planId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admin can modify plans
+    }
+
+    // ===== USAGE TRACKING =====
+    match /usage/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,394 @@
+class GenerationOptions {
+  // Gender Selection
+  static const List<String> genders = [
+    "Female",
+    "Male",
+  ];
+
+  // Female Outfit Styles
+  static const List<String> femaleOutfitStyles = [
+    "As in photo",
+    "Casual Chic",
+    "Soft Girl",
+    "Luxury",
+    "Jet-Set Executive Jumpsuit",
+    "Influencer Aesthetic",
+    "Gym Outfit",
+    "Work Outfit",
+    "Travel Fit",
+    "Designer Look",
+    "Lounge Wear",
+    "Business Professional",
+    "2-Piece Swimsuit",
+    "Mini Dress",
+    "Night Out Bodycon Dress",
+    "Silk Slip Dress",
+    "Leather Mini Skirt & Top",
+    "Corset Top & Trousers",
+    "Chic Blazer Dress",
+    "Cut-out Jumpsuit",
+  ];
+
+  static const List<String> outfitStyles = femaleOutfitStyles;
+
+  static const List<String> locations = [
+    "Target Run",
+    "Sephora Haul",
+    "Ulta Beauty Trip",
+    "Gas Station Chic",
+    "Grocery Store Run",
+    "Bathroom Mirror Selfie",
+    "Studio Podcast",
+    "Home Podcast",
+    "Cozy Living Room",
+    "Modern Office",
+    "Pilates Reformer Studio",
+    "Green Juice Run",
+    "Journaling in a Nook",
+    "Aesthetic Bubble Bath",
+    "Cozy Skincare Routine",
+    "Cozy Fireplace",
+    "Walk-in Luxury Closet",
+    "Vanity / GRWM",
+    "Farmers Market",
+    "Morning Coffee Shop",
+    "Flower Shop",
+    "Bookstore / Library",
+    "Art Gallery",
+    "Park",
+    "Hiking Trail",
+    "Airport Travel / Lounge",
+    "Private Jet Interior",
+    "Rooftop Brunch",
+    "Luxury Restaurant",
+    "Candlelit Dinner",
+    "Beach Sunset",
+    "Poolside Cabana",
+    "Gym / Workout",
+    "NYC SoHo",
+    "Rodeo Drive",
+    "Paris, France",
+    "London, UK",
+    "Tokyo, Japan",
+    "Dubai, UAE",
+  ];
+
+  static const List<String> hairstyles = [
+    "As in photo",
+    "Long Straight Hair (Middle Part)",
+    "Large Curly Afro",
+    "Sleek High Ponytail",
+    "Long Wavy Curls",
+    "Platinum Blonde Bob",
+    "Vibrant Pink Wig",
+    "Cornrow Braids",
+    "Messy Top Knot Bun",
+    "Straight with Bangs",
+    "Chic Pixie Cut",
+    "Mermaid Waves",
+    "Half-Up Half-Down",
+    "Trendy Space Buns",
+    "Bubble Braids",
+    "Low Bun with Face-Framing Pieces",
+    "Curtain Bangs with Layers",
+    "Edgy Wolf Cut",
+    "Hollywood Glam Waves",
+    "Butterfly Locs",
+  ];
+
+  // Male Hairstyles - Signature Hair (from screenshots)
+  static const List<String> maleHairstyles = [
+    "As in Photo",
+    "High Skin Fade (Textured Top)",
+    "Classic Slick Back",
+    "Modern Pompadour",
+    "Sharp Buzz Cut",
+    "Messy Fringe (Surfer Style)",
+    "Long Hair (Man Bun / Tied Back)",
+    "Executive Side Part",
+    "Taper Fade with Natural Curls",
+    "Bald & Polished",
+    "Wavy Bro Flow",
+    "Braids / Cornrows",
+    "Middle Part (E-Boy Style)",
+    "Crew Cut (Military Style)",
+  ];
+
+  static const List<String> makeupLooks = [
+    "As in photo",
+    "No Makeup Makeup (Clean Girl)",
+    "Soft Glam",
+    "Full Glam (Contoured)",
+    "Smokey Eye & Nude Lip",
+    "Classic Red Lip & Winged Liner",
+    "Fox Eye Look",
+    "Y2K Frosted & Glossy",
+    "Bronze Goddess",
+    "Euphoria Inspired (Glitter)",
+    "Berry Tones & Flushed Cheeks",
+    "Goth / Dark Liner",
+  ];
+
+  // Lens Angle (IV. Digital Craft - from screenshots) - used for both male & female
+  static const List<String> cameraAngles = [
+    "Standard Eye Level",
+    "Selfie (Arm Extended)",
+    "POV / Front-Facing Camera",
+    "Mirror Selfie (Luxury Interior)",
+    "Low Angle (Heroic/Dominant)",
+    "High Angle (Candid/Lifestyle)",
+    "Profile / Side Silhouette",
+    "Walking Action Shot",
+    "Over-the-Shoulder Smolder",
+    "Macro Close-Up (Face)",
+    "Full Body Wide (Editorial)",
+    "Sitting / Leaning (Relaxed)",
+    "Ground Level (Worm's Eye)",
+    "Top Down (Bird's Eye View)",
+    "45-Degree Three-Quarter",
+    "Wide Angle Environmental",
+    "Extreme Close-Up (Macro Detail)",
+    "Back View (Looking Away)",
+    "Mirror Reflection Shot",
+    "Candid Paparazzi Style",
+    "Low-Angle Power Shot",
+    "Dutch Angle (Cinematic Tilt)",
+  ];
+
+  // Frame Ratio (IV. Digital Craft)
+  static const List<String> aspectRatios = [
+    "As in Photo",
+    "9:16 (Portrait / Reels)",
+    "4:5 (Instagram Portrait)",
+    "1:1 (Square)",
+    "4:3 (Standard)",
+    "16:9 (Landscape / YouTube)",
+    "3:2 (DSLR Standard)",
+    "2:3 (Magazine Portrait)",
+  ];
+
+  static const List<String> skinStyles = [
+    "Natural & Realistic (with pores)",
+    "Real Skin Lock (Ultra-Real, No Smoothing)",
+    "Glossy & Dewy Finish",
+    "Soft Matte Finish",
+    "Sunkissed & Freckled",
+    "Glamorous Flawless (Airbrushed)",
+    "Ultra-Realistic (Natural, No Filters)",
+    "Ultra-Real Skin Lock",
+  ];
+
+  static const List<String> heights = [
+    "As in photo",
+    "5'0\"",
+    "5'2\"",
+    "5'4\"",
+    "5'6\"",
+    "5'8\"",
+    "5'10\"",
+    "6'0\"",
+  ];
+
+  static const List<String> bustSizes = [
+    "As in photo",
+    "32A",
+    "32B",
+    "34B",
+    "34C",
+    "36C",
+    "36D",
+    "38D",
+    "38DD",
+  ];
+
+  static const List<String> waistSizes = [
+    "As in photo",
+    "24 inches",
+    "26 inches",
+    "28 inches",
+    "30 inches",
+    "32 inches",
+  ];
+
+  static const List<String> hipsSizes = [
+    "As in photo",
+    "34 inches",
+    "36 inches",
+    "38 inches",
+    "40 inches",
+    "42 inches",
+    "44 inches",
+  ];
+
+  static const List<String> moods = [
+    "Standard / Realistic",
+    "That Girl (Clean, Productive)",
+    "Rich Mom Energy (Expensive, Classy)",
+    "Baddie (Bold, Confident)",
+    "Y2K Aesthetic (Playful, Retro)",
+    "Old Money (Timeless, Elegant)",
+    "Dark Feminine (Mysterious, Seductive)",
+    "Coquette (Soft, Romantic, Pink)",
+    "Streetwear / Hypebeast",
+    "Professional / Boss Babe",
+    "Party / Nightlife",
+    "Vacation / Relaxed",
+    "Edgy / Grunge",
+    "Whimsical / Dreamy",
+  ];
+
+  // Male Moods - Atmospheric Mood (from screenshots)
+  static const List<String> maleMoods = [
+    "Alpha / Executive Presence",
+    "Moody / Mysterious",
+    "Affluent / High-Roller",
+    "Cool / Street Cred",
+    "Sophisticated / Quiet Luxury",
+    "Intellectual / Academic",
+    "Adventurous / Outdoors",
+    "High-Intensity Fitness",
+    "Cinematic Movie Poster",
+    "Penthouse Luxury Podcast",
+    "Dark Moody Studio Podcast",
+    "Professional / Boss Mode",
+    "Party / Nightlife",
+    "Vacation / Relaxed",
+    "Edgy / Grunge",
+  ];
+
+  // Male Locations - Geographic Node (from screenshots)
+  static const List<String> maleLocations = [
+    "Private Jet Luxury Interior",
+    "New York, NY",
+    "Los Angeles, CA",
+    "Miami, FL",
+    "Chicago, IL",
+    "Las Vegas, NV",
+    "Houston, TX",
+    "Atlanta, GA",
+    "Paris, France",
+    "London, UK",
+    "Tokyo, Japan",
+    "Dubai, UAE",
+    "Santorini, Greece",
+    "Tulum, Mexico",
+    "Bali, Indonesia",
+    "High-End Barber Shop",
+    "Luxury Supercar Interior",
+    "Glass-Walled Executive Office",
+    "Ultra-Modern Minimalist Penthouse",
+    "Private Boutique Gym",
+    "Subterranean Jazz Club",
+    "Concrete Brutalist Architecture",
+    "Private Jet Hangar",
+    "NYC SoHo Street (Golden Hour)",
+    "Speakeasy Bar (Moody Lighting)",
+    "First Class Airport Lounge",
+    "Championship Golf Course",
+    "Monaco Harbor Yacht Deck",
+    "Modernist Art Gallery",
+    "High-Fashion Studio (Grey Backdrop)",
+    "Luxury Library / Study",
+    "Desert Dune Landscape",
+    "Swiss Alps Balcony",
+    "Tropical Infinity Pool Side",
+    "Tokyo Shibuya Crossing (Night)",
+    "London Mayfair Sidewalk",
+    "Milan Duomo Plaza",
+    "Luxury Penthouse Podcast",
+    "Dark Luxury Studio Podcast (Interior)",
+    "CEO Podcast Studio",
+  ];
+
+  // Male Outfit Styles - Elite Attire (from screenshots)
+  static const List<String> maleOutfitStyles = [
+    "As in Photo",
+    "Stealth Wealth (Cashmere & Tailored)",
+    "Executive Power Suit (Double Breasted)",
+    "Italian Sprezzatura (Linen & Loafers)",
+    "Streetwear Grails (Hypebeast)",
+    "Old Money Aesthetic (Polo & Chinos)",
+    "Minimalist Scandi (Clean Lines)",
+    "Gym Performance / Compression Wear",
+    "Rugged Americana (Raw Denim & Heritage Boots)",
+    "Techwear / Cyberpunk Tactical",
+    "Evening Black Tie Tuxedo",
+    "Aviation Style (Leather Bomber & Aviators)",
+    "Modern Smart Casual (Blazer & Premium Tee)",
+    "Nordic Winter (Heavy Knit & Overcoat)",
+    "Resort Glamour (Silk Patterned Shirt)",
+    "Vintage 90s Oversized Streetwear",
+    "Dark Academia (Tweed & Turtleneck)",
+    "Monochrome Avant-Garde",
+    "Utility Workwear (Heritage Canvas)",
+    "Preppy Ivy League (Varsity Jacket)",
+    "Gorpcore / High-End Trekking (Arc'teryx Vibe)",
+    "Japanese Americana (Layered Textures & Sashiko)",
+    "Mediterranean Summer (Knitted Polo & White Linen)",
+    "Safari / Colonial Utility (Khaki & Field Jacket)",
+    "90s Grunge (Distressed Denim & Flannel)",
+    "Modern Rocker (Leather & Chelsea Boots)",
+    "Country Club Elite (Tennis Whites & Cable Knit)",
+    "Equestrian Chic (Tailored Blazer & Tall Boots)",
+    "Skater / Urban Surf (Baggy Fit & Graphic Tees)",
+    "Cyber-Street (Reflective Fabrics & Neon Accents)",
+    "Coastal Grandfather (Relaxed Silhouettes & Pastel Knits)",
+  ];
+
+  // Male Grooming - replaces Makeup for males (from screenshots)
+  static const List<String> maleGrooming = [
+    "As in Photo",
+    "Clean Shaven",
+    "Designer Stubble (3-Day Growth)",
+    "Heavy Stubble (Rugged)",
+    "Short Boxed Beard (Sharp Lines)",
+    "Full Beard (Luxury Groomed)",
+    "Goatee (Modern)",
+    "Corporate Beard",
+    "Moustache (Classic Chevron)",
+  ];
+
+  // Male Verticality - heights (from screenshots)
+  static const List<String> maleHeights = [
+    "As in Photo",
+    "5'8\"",
+    "5'10\"",
+    "6'0\"",
+    "6'2\"",
+    "6'4\"",
+  ];
+
+  // Male Physique - replaces hips/shoulder (from screenshots)
+  static const List<String> malePhysique = [
+    "As in Photo",
+    "Slim",
+    "Athletic Lean",
+    "Broad / V-Taper",
+    "Heavy Muscular",
+  ];
+
+  // Keep these for backward compat
+  static const List<String> maleChestSizes = [
+    "As in Photo",
+    "36 inches",
+    "38 inches",
+    "40 inches",
+    "42 inches",
+    "44 inches",
+    "46 inches",
+    "48 inches",
+  ];
+
+  static const List<String> maleWaistSizes = [
+    "As in Photo",
+    "28 inches",
+    "30 inches",
+    "32 inches",
+    "34 inches",
+    "36 inches",
+    "38 inches",
+    "40 inches",
+  ];
+
+  static const List<String> maleShoulderSizes = malePhysique;
+}
