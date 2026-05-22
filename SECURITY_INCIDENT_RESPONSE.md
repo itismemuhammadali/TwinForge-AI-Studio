@@ -17,7 +17,7 @@ GitHub detected a hardcoded Gemini API key in the repository commit history.
    - Go to [Google Cloud Console](https://console.cloud.google.com)
    - Select project: **aimr-twin-studio**
    - Navigate to **APIs & Services** → **Credentials**
-   - Find and **DELETE** the exposed key: `AIzaSyDC7nOubuGl7BbmmJUaMlfpA9d7cbyl-mQ`
+   - Find and **DELETE** the exposed key
    - Create a **NEW API key**
 
 2. **Update Firebase Remote Config:**

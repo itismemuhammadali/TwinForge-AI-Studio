@@ -43,10 +43,7 @@ flutter pub get
 
 1. In Firebase Console → Remote Config
 2. Click on the `gemini_api_key` parameter
-3. Click **Edit** and add your actual API key:
-   ```
-   AIzaSyDC7nOubuGl7BbmmJUaMlfpA9d7cbyl-mQ
-   ```
+3. Click **Edit** and add your actual API key (get it from Google Cloud Console)
 4. Click **Publish Changes**
 
 ### 4. How It Works in the App
