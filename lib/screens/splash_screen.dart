@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
 import '../services/firebase_service.dart';
 import '../services/fcm_service.dart';
+import '../services/gemini_service.dart';
 import 'onboarding_screen.dart';
 import 'main_shell.dart';
 
@@ -55,8 +56,9 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       await FirebaseService.initialize();
       await FCMService().initialize();
+      await GeminiService.initialize(); // Initialize Gemini with API key from Firebase Remote Config
     } catch (_) {
-      // Firebase already initialized or failed — continue anyway
+      // Firebase/Gemini already initialized or failed — continue anyway
     }
   }
 

@@ -1,9 +1,42 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 class GeminiService {
-  static const String apiKey = 'AIzaSyDC7nOubuGl7BbmmJUaMlfpA9d7cbyl-mQ';
+  static late String apiKey;
+  static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+
+  /// Initialize Gemini Service with API key from Firebase Remote Config
+  static Future<void> initialize() async {
+    try {
+      // Set default values
+      await _remoteConfig.setDefaults({
+        'gemini_api_key': '', // Empty default - must be set in Firebase Console
+      });
+
+      // Fetch remote config with 1 hour cache
+      await _remoteConfig.fetchAndActivate();
+
+      // Get API key from remote config
+      apiKey = _remoteConfig.getString('gemini_api_key');
+
+      if (apiKey.isEmpty) {
+        throw Exception('Gemini API key not configured in Firebase Remote Config');
+      }
+
+      debugLog('✅ Gemini API key loaded successfully from Firebase Remote Config');
+    } catch (e) {
+      debugLog('❌ Error initializing Gemini Service: $e');
+      rethrow;
+    }
+  }
+
+  /// Debug logging helper
+  static void debugLog(String message) {
+    // Use debugPrint instead of print for production
+    debugPrint('[GeminiService] $message');
+  }
 
   /// Convert image file to base64 string
   Future<String> _fileToBase64(File imageFile) async {
@@ -114,7 +147,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
           );
           generatedImages.add(imageData);
         } catch (e) {
-          print('Error generating image $i: $e');
+          debugLog('Error generating image $i: $e');
           generatedImages.add('error');
         }
       }
@@ -159,13 +192,23 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
         }
       };
 
+      debugLog('📤 Sending image generation request to Gemini API...');
+      debugLog('📊 Request size: ${jsonEncode(requestBody).length} bytes');
+
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 120),
+        onTimeout: () {
+          throw Exception('API request timeout after 120 seconds');
+        },
       );
+
+      debugLog('📥 Received response with status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -178,6 +221,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
+                debugLog('✅ Image generated successfully (${imageData.length} bytes)');
                 return 'data:$mimeType;base64,$imageData';
               }
             }
@@ -186,11 +230,13 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
 
         throw Exception('No image data in response');
       } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
-        throw Exception('API returned status ${response.statusCode}');
+        final errorBody = response.body;
+        debugLog('❌ API Error: ${response.statusCode}');
+        debugLog('❌ Error details: $errorBody');
+        throw Exception('API returned status ${response.statusCode}: $errorBody');
       }
     } catch (e) {
-      print('Error in _generateSingleImage: $e');
+      debugLog('❌ Error in _generateSingleImage: $e');
       rethrow;
     }
   }
@@ -237,7 +283,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
           );
           generatedImages.add(imageData);
         } catch (e) {
-          print('Error generating image $i: $e');
+          debugLog('Error generating image $i: $e');
           generatedImages.add('error');
         }
       }
@@ -275,13 +321,23 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
         }
       };
 
+      debugLog('📤 Sending text-based image generation request to Gemini API...');
+      debugLog('📊 Prompt length: ${prompt.length} characters');
+
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 120),
+        onTimeout: () {
+          throw Exception('API request timeout after 120 seconds');
+        },
       );
+
+      debugLog('📥 Received response with status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -293,6 +349,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
+                debugLog('✅ Image generated successfully from prompt (${imageData.length} bytes)');
                 return 'data:$mimeType;base64,$imageData';
               }
             }
@@ -301,11 +358,13 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
 
         throw Exception('No image data in response');
       } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
-        throw Exception('API returned status ${response.statusCode}');
+        final errorBody = response.body;
+        debugLog('❌ API Error: ${response.statusCode}');
+        debugLog('❌ Error details: $errorBody');
+        throw Exception('API returned status ${response.statusCode}: $errorBody');
       }
     } catch (e) {
-      print('Error in _generateSingleImageFromPrompt: $e');
+      debugLog('❌ Error in _generateSingleImageFromPrompt: $e');
       rethrow;
     }
   }
