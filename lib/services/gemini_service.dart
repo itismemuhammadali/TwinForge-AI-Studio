@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 
@@ -34,8 +35,8 @@ class GeminiService {
 
   /// Debug logging helper
   static void debugLog(String message) {
-    // Use debugPrint instead of print for production
-    debugPrint('[GeminiService] $message');
+    // Use developer.log instead of print for production
+    developer.log('[GeminiService] $message');
   }
 
   /// Convert image file to base64 string
