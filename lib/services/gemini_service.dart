@@ -11,24 +11,33 @@ class GeminiService {
   /// Initialize Gemini Service with API key from Firebase Remote Config
   static Future<void> initialize() async {
     try {
+      debugLog('🚀 Initializing Gemini Service...');
+      
       // Set default values
+      debugLog('📋 Setting default remote config values...');
       await _remoteConfig.setDefaults({
         'gemini_api_key': '', // Empty default - must be set in Firebase Console
       });
+      debugLog('✅ Defaults set');
 
       // Fetch remote config with 1 hour cache
+      debugLog('🔄 Fetching remote config from Firebase...');
       await _remoteConfig.fetchAndActivate();
+      debugLog('✅ Remote config fetched and activated');
 
       // Get API key from remote config
       apiKey = _remoteConfig.getString('gemini_api_key');
+      debugLog('🔑 API Key retrieved: ${apiKey.substring(0, 15)}...');
 
       if (apiKey.isEmpty) {
+        debugLog('❌ Gemini API key is empty!');
         throw Exception('Gemini API key not configured in Firebase Remote Config');
       }
 
       debugLog('✅ Gemini API key loaded successfully from Firebase Remote Config');
     } catch (e) {
       debugLog('❌ Error initializing Gemini Service: $e');
+      debugLog('❌ Stack trace: ${StackTrace.current}');
       rethrow;
     }
   }
@@ -117,10 +126,17 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     required int numberOfImages,
   }) async {
     try {
+      debugLog('🎬 Starting image generation with reference...');
+      debugLog('📸 Reference image: ${referenceImage.path}');
+      debugLog('🎨 Parameters: $numberOfImages images, aspect ratio: $aspectRatio');
+      
       // Convert reference image to base64
+      debugLog('🔄 Converting image to base64...');
       final base64Image = await _fileToBase64(referenceImage);
+      debugLog('✅ Base64 conversion complete (${base64Image.length} chars)');
 
       // Generate detailed prompt
+      debugLog('📝 Generating detailed prompt...');
       final detailedPrompt = await generateImagePrompt(
         outfit: outfit,
         location: location,
@@ -135,26 +151,31 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
         hips: hips,
         aspectRatio: aspectRatio,
       );
+      debugLog('✅ Prompt generated: ${detailedPrompt.substring(0, 100)}...');
 
       // Generate images in parallel
       List<String> generatedImages = [];
 
       for (int i = 0; i < numberOfImages; i++) {
         try {
+          debugLog('🖼️ Generating image ${i + 1}/$numberOfImages...');
           final imageData = await _generateSingleImage(
             base64Image,
             detailedPrompt,
             aspectRatio,
           );
           generatedImages.add(imageData);
+          debugLog('✅ Image ${i + 1} generated successfully');
         } catch (e) {
-          debugLog('Error generating image $i: $e');
+          debugLog('❌ Error generating image ${i + 1}: $e');
           generatedImages.add('error');
         }
       }
 
+      debugLog('🎉 Image generation complete! Success: ${generatedImages.where((img) => img != 'error').length}/$numberOfImages');
       return generatedImages;
     } catch (e) {
+      debugLog('❌ Fatal error in generateImagesWithReference: $e');
       throw Exception('Failed to generate images: $e');
     }
   }
@@ -166,6 +187,10 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     String aspectRatio,
   ) async {
     try {
+      debugLog('🔧 Preparing request for single image...');
+      debugLog('📏 Aspect ratio: $aspectRatio -> ${_mapAspectRatio(aspectRatio)}');
+      debugLog('🔑 API Key: ${apiKey.substring(0, 10)}...');
+
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
       );
@@ -193,8 +218,9 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
         }
       };
 
-      debugLog('📤 Sending image generation request to Gemini API...');
-      debugLog('📊 Request size: ${jsonEncode(requestBody).length} bytes');
+      debugLog('📤 Sending request to: ${url.scheme}://${url.host}');
+      debugLog('📊 Request body size: ${jsonEncode(requestBody).length} bytes');
+      debugLog('📊 Base64 image size: ${base64Image.length} chars');
 
       final response = await http.post(
         url,
@@ -205,39 +231,54 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       ).timeout(
         const Duration(seconds: 120),
         onTimeout: () {
+          debugLog('⏱️ Request timeout after 120 seconds');
           throw Exception('API request timeout after 120 seconds');
         },
       );
 
-      debugLog('📥 Received response with status: ${response.statusCode}');
+      debugLog('📥 Response received with status: ${response.statusCode}');
+      debugLog('📥 Response size: ${response.body.length} bytes');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        debugLog('✅ Response parsed successfully');
+        debugLog('📊 Response candidates: ${data['candidates']?.length ?? 0}');
 
         // Extract image data from response
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
+          debugLog('🔍 Checking candidate 0...');
+          
           if (candidate['content'] != null && candidate['content']['parts'] != null) {
-            for (final part in candidate['content']['parts']) {
+            final parts = candidate['content']['parts'];
+            debugLog('📦 Found ${parts.length} parts in candidate');
+            
+            for (int i = 0; i < parts.length; i++) {
+              final part = parts[i];
+              debugLog('🔎 Checking part $i: ${part.keys.join(', ')}');
+              
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
-                debugLog('✅ Image generated successfully (${imageData.length} bytes)');
+                debugLog('✅ Found image data! Type: $mimeType, Size: ${imageData.length} chars');
                 return 'data:$mimeType;base64,$imageData';
               }
             }
           }
         }
 
+        debugLog('❌ No image data found in response structure');
+        debugLog('📋 Full response: ${jsonEncode(data).substring(0, 500)}');
         throw Exception('No image data in response');
       } else {
         final errorBody = response.body;
         debugLog('❌ API Error: ${response.statusCode}');
-        debugLog('❌ Error details: $errorBody');
+        debugLog('❌ Error response: $errorBody');
         throw Exception('API returned status ${response.statusCode}: $errorBody');
       }
     } catch (e) {
-      debugLog('❌ Error in _generateSingleImage: $e');
+      debugLog('❌ Exception in _generateSingleImage: $e');
+      debugLog('❌ Stack trace: ${StackTrace.current}');
       rethrow;
     }
   }
@@ -301,6 +342,10 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     String aspectRatio,
   ) async {
     try {
+      debugLog('🔧 Preparing text-based image request...');
+      debugLog('📏 Aspect ratio: $aspectRatio -> ${_mapAspectRatio(aspectRatio)}');
+      debugLog('🔑 API Key: ${apiKey.substring(0, 10)}...');
+
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
       );
@@ -322,8 +367,9 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
         }
       };
 
-      debugLog('📤 Sending text-based image generation request to Gemini API...');
-      debugLog('📊 Prompt length: ${prompt.length} characters');
+      debugLog('📤 Sending text-based request to: ${url.scheme}://${url.host}');
+      debugLog('📊 Request body size: ${jsonEncode(requestBody).length} bytes');
+      debugLog('📝 Prompt length: ${prompt.length} characters');
 
       final response = await http.post(
         url,
@@ -334,14 +380,17 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       ).timeout(
         const Duration(seconds: 120),
         onTimeout: () {
+          debugLog('⏱️ Text-based request timeout after 120 seconds');
           throw Exception('API request timeout after 120 seconds');
         },
       );
 
-      debugLog('📥 Received response with status: ${response.statusCode}');
+      debugLog('📥 Text-based response status: ${response.statusCode}');
+      debugLog('📥 Response size: ${response.body.length} bytes');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        debugLog('✅ Text-based response parsed');
 
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
@@ -350,22 +399,23 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
-                debugLog('✅ Image generated successfully from prompt (${imageData.length} bytes)');
+                debugLog('✅ Text-based image generated (${imageData.length} bytes)');
                 return 'data:$mimeType;base64,$imageData';
               }
             }
           }
         }
 
+        debugLog('❌ No image data in text-based response');
         throw Exception('No image data in response');
       } else {
         final errorBody = response.body;
-        debugLog('❌ API Error: ${response.statusCode}');
-        debugLog('❌ Error details: $errorBody');
+        debugLog('❌ Text-based API Error: ${response.statusCode}');
+        debugLog('❌ Error: $errorBody');
         throw Exception('API returned status ${response.statusCode}: $errorBody');
       }
     } catch (e) {
-      debugLog('❌ Error in _generateSingleImageFromPrompt: $e');
+      debugLog('❌ Exception in _generateSingleImageFromPrompt: $e');
       rethrow;
     }
   }

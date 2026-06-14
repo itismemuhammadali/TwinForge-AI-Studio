@@ -52,11 +52,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: 'YOUR_IOS_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    iosBundleId: 'com.example.aiVideoImageGenerationApp',
+    apiKey: 'AIzaSyDsf84cvzgaLxIQxYSuIhCYNSmJQNxAXoI',
+    appId: '1:298990602880:ios:ec95b7a6cdd66506297465',
+    messagingSenderId: '298990602880',
+    projectId: 'aimr-twin-studio',
+    storageBucket: 'aimr-twin-studio.firebasestorage.app',
+    iosBundleId: 'com.twinora.app',
   );
 }

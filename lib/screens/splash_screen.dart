@@ -55,10 +55,35 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _initFirebase() async {
     try {
       await FirebaseService.initialize();
-      await FCMService().initialize();
-      await GeminiService.initialize(); // Initialize Gemini with API key from Firebase Remote Config
-    } catch (_) {
-      // Firebase/Gemini already initialized or failed — continue anyway
+      
+      // Initialize FCM with timeout — skip if it takes too long
+      try {
+        await FCMService().initialize().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            debugPrint('FCM initialization timeout — continuing without FCM');
+          },
+        );
+      } catch (e) {
+        debugPrint('FCM initialization failed: $e');
+        // Continue anyway
+      }
+      
+      // Initialize Gemini with timeout — skip if it takes too long
+      try {
+        await GeminiService.initialize().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            debugPrint('Gemini initialization timeout — continuing without Gemini');
+          },
+        );
+      } catch (e) {
+        debugPrint('Gemini initialization failed: $e');
+        // Continue anyway
+      }
+    } catch (e) {
+      debugPrint('Firebase initialization error: $e');
+      // Continue anyway — app will work offline
     }
   }
 
