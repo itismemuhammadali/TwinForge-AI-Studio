@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import '../theme/app_theme.dart';
@@ -10,6 +12,8 @@ import '../providers/content_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/gemini_service.dart';
 import 'conversion_screen.dart';
+import 'library_screen.dart';
+import 'main_shell.dart';
 
 class ImageEditScreen extends StatefulWidget {
   final GeneratedContent content;
@@ -22,6 +26,7 @@ class ImageEditScreen extends StatefulWidget {
 class _ImageEditScreenState extends State<ImageEditScreen> {
   late TextEditingController _editPromptCtrl;
   bool _isEditing = false;
+  bool _isSaving = false;
   String? _editedImageUrl;
 
   @override
@@ -236,19 +241,13 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
               const SizedBox(height: 32),
 
               // Header
-              Text('REFINE IMAGE',
-                  style: AppFonts.poppins(
-                    size: 10, weight: FontWeight.w700,
-                    color: AppColors.gold, letterSpacing: 3,
-                  )),
-              const SizedBox(height: 8),
-              Text('Edit Your Image',
+              Text('Generated Image',
                   style: AppFonts.playfair(
                     size: 32, weight: FontWeight.w900, color: AppColors.white,
                   )),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                'Describe what you want to change and Twinora will apply it with AI.',
+                'Save this to your library or discard it.',
                 textAlign: TextAlign.center,
                 style: AppFonts.poppins(size: 13, color: AppColors.muted, height: 1.6),
               ),
@@ -305,64 +304,26 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
 
               const SizedBox(height: 28),
 
-              // Edit Prompt Input
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Save and Cancel Buttons
+              Row(
                 children: [
-                  Text('EDIT PROMPT',
-                      style: AppFonts.poppins(
-                        size: 10, weight: FontWeight.w700,
-                        color: AppColors.gold, letterSpacing: 3,
-                      )),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _editPromptCtrl,
-                    maxLines: 3,
-                    style: AppFonts.poppins(size: 14, color: AppColors.text, height: 1.6),
-                    cursorColor: AppColors.gold,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. "Add sunglasses", "Change background to beach", "Add a suit jacket"...',
-                      hintStyle: AppFonts.poppins(
-                        size: 12,
-                        color: AppColors.muted.withValues(alpha: 0.4),
-                        height: 1.6,
-                      ),
-                      filled: true,
-                      fillColor: Colors.black.withValues(alpha: 0.3),
-                      contentPadding: const EdgeInsets.all(16),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: AppColors.white.withValues(alpha: 0.08), width: 0.8,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: AppColors.gold.withValues(alpha: 0.4), width: 1,
-                        ),
-                      ),
+                  Expanded(
+                    child: GoldButton(
+                      label: 'CANCEL',
+                      outlined: true,
+                      onTap: _isSaving ? null : () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: GoldButton(
+                      label: _isSaving ? 'SAVING...' : 'SAVE IMAGE',
+                      loading: _isSaving,
+                      onTap: _isSaving ? null : () => _saveToLibrary(),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-
-              // Apply Edit Button
-              GoldButton(
-                label: _isEditing ? 'APPLYING EDIT...' : 'APPLY EDIT',
-                loading: _isEditing,
-                onTap: _isEditing ? null : _applyEdit,
-              ),
-              const SizedBox(height: 16),
-
-              // Continue Button — only show after edit applied
-              if (_editedImageUrl != null)
-                GoldButton(
-                  label: 'CONTINUE TO CONVERSION',
-                  outlined: true,
-                  onTap: _saveAndContinue,
-                ),
 
               const SizedBox(height: 40),
             ],
@@ -370,5 +331,94 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveToLibrary() async {
+    try {
+      setState(() => _isSaving = true);
+
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Not authenticated',
+                  style: AppFonts.poppins(color: AppColors.white)),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Convert base64 image to bytes
+      String imageUrl = widget.content.originalImageUrl;
+      Uint8List imageBytes;
+
+      if (imageUrl.startsWith('data:image')) {
+        final base64Str = imageUrl.split(',')[1];
+        imageBytes = base64Decode(base64Str);
+      } else {
+        // It's a URL, download it
+        final response = await http.get(Uri.parse(imageUrl));
+        imageBytes = response.bodyBytes;
+      }
+
+      // Upload to Firebase Storage
+      final fileName = 'generated_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = FirebaseStorage.instance.ref('users/${user.uid}/generatedImages/$fileName');
+      await ref.putData(imageBytes);
+      final downloadUrl = await ref.getDownloadURL();
+
+      // Create GeneratedContent with the Firebase Storage URL
+      final generatedContent = GeneratedContent(
+        id: widget.content.id,
+        originalImageUrl: downloadUrl,
+        prompt: widget.content.prompt,
+        editPrompt: _editPromptCtrl.text,
+        createdAt: widget.content.createdAt,
+        contentType: 'original',
+        metadata: {
+          ...widget.content.metadata,
+          // Remove the large all_images array to avoid Firestore size limit
+        }..remove('all_images'),
+      );
+
+      final contentProvider = context.read<ContentProvider>();
+      await contentProvider.saveContent(
+        user.uid,
+        generatedContent.toMap(),
+      );
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Image saved to library!',
+                style: AppFonts.poppins(color: AppColors.white)),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Navigate to MainShell (with bottom nav bar)
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MainShell()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving: $e',
+                style: AppFonts.poppins(color: AppColors.white)),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

@@ -3,6 +3,8 @@ import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../constants/studio_options.dart';
 import '../models/generated_content.dart';
+import '../services/stock_image_service.dart';
+import 'video_screen.dart';
 
 class BrollScreen extends StatefulWidget {
   final GeneratedContent? content;
@@ -15,12 +17,32 @@ class _BrollScreenState extends State<BrollScreen> {
   String _motionStyle = StudioOptions.motionStyles[0];
   bool _hasImage = false;
   int _selectedDuration = 5;
+  
+  List<StockVideo> _templates = [];
+  bool _isLoadingTemplates = true;
 
   @override
   void initState() {
     super.initState();
     if (widget.content != null) {
       _hasImage = true;
+    }
+    _loadTemplates();
+  }
+
+  Future<void> _loadTemplates() async {
+    try {
+      final videos = await StockImageService.searchBRollVideos(perPage: 10);
+      if (mounted) {
+        setState(() {
+          _templates = videos;
+          _isLoadingTemplates = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingTemplates = false);
+      }
     }
   }
 
@@ -56,7 +78,7 @@ class _BrollScreenState extends State<BrollScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Convert images into short cinematic clips with motion styles',
+                'Convert images into short cinematic clips or use high-quality templates',
                 style: AppFonts.poppins(
                   size: 13,
                   color: AppColors.muted,
@@ -65,6 +87,23 @@ class _BrollScreenState extends State<BrollScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 32),
+
+          // Templates Section
+          _buildTemplatesSection(),
+
+          const SizedBox(height: 40),
+          
+          Row(children: [
+            const Expanded(child: Divider(color: AppColors.surface, thickness: 1)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('OR UPLOAD IMAGE', 
+                style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
+            ),
+            const Expanded(child: Divider(color: AppColors.surface, thickness: 1)),
+          ]),
+          
           const SizedBox(height: 32),
 
           // Upload
@@ -155,6 +194,95 @@ class _BrollScreenState extends State<BrollScreen> {
           const SizedBox(height: 40),
         ]),
       ),
+    );
+  }
+
+  Widget _buildTemplatesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'B-ROLL TEMPLATES',
+              style: AppFonts.poppins(
+                size: 10,
+                weight: FontWeight.w700,
+                color: AppColors.gold,
+                letterSpacing: 3,
+              ),
+            ),
+            if (_templates.isNotEmpty)
+              GestureDetector(
+                onTap: () => _loadTemplates(),
+                child: const Icon(Icons.refresh, color: AppColors.gold, size: 16),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_isLoadingTemplates)
+          const SizedBox(
+            height: 180,
+            child: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+          )
+        else if (_templates.isEmpty)
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: Text('No templates found', style: AppFonts.poppins(color: AppColors.muted)),
+            ),
+          )
+        else
+          SizedBox(
+            height: 180,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _templates.length,
+              itemBuilder: (context, index) {
+                final video = _templates[index];
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => VideoScreen(templateVideo: video)),
+                  ),
+                  child: Container(
+                    width: 130,
+                    margin: const EdgeInsets.only(right: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(video.thumbnailUrl, fit: BoxFit.cover),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.transparent, Colors.black.withValues(alpha: 0.6)],
+                              ),
+                            ),
+                          ),
+                          const Center(child: Icon(Icons.play_circle_outline, color: AppColors.white, size: 30)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 

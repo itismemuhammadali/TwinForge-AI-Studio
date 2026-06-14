@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../services/firebase_service.dart';
 import '../services/fcm_service.dart';
 import '../services/gemini_service.dart';
+import '../services/fal_ai_service.dart';
 import 'onboarding_screen.dart';
 import 'main_shell.dart';
 
@@ -42,11 +43,39 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initAndNavigate() async {
-    // Run Firebase init and minimum display time in parallel
-    await Future.wait([
-      _initFirebase(),
-      Future.delayed(const Duration(milliseconds: 2800)), // min splash time
-    ]);
+    // Run init with minimum splash display time
+    try {
+      // Run init in background
+      final initFuture = _initFirebase();
+      
+      // Ensure splash shows for minimum time
+      await Future.delayed(const Duration(milliseconds: 2800));
+      
+      // Wait for init to complete
+      await initFuture;
+      
+      debugPrint('✅ Initialization complete, proceeding to navigation');
+    } catch (e) {
+      debugPrint('❌ Fatal initialization error: $e');
+      // Show error only for critical Firebase errors
+      if (mounted && e.toString().contains('Firebase')) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Initialization Error'),
+            content: Text('Failed to initialize:\n\n$e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
 
     if (!mounted) return;
     _navigate();
@@ -56,44 +85,50 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       await FirebaseService.initialize();
       
-      // Initialize FCM with timeout — skip if it takes too long
+      debugPrint('🔄 Initializing GeminiService...');
+      // Initialize critical services sequentially
       try {
-        await FCMService().initialize().timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            debugPrint('FCM initialization timeout — continuing without FCM');
-          },
-        );
+        await GeminiService.initialize();
+        debugPrint('✅ GeminiService initialization complete');
       } catch (e) {
-        debugPrint('FCM initialization failed: $e');
-        // Continue anyway
+        debugPrint('❌ GeminiService initialization failed: $e');
+        // Don't rethrow — allow app to continue, generation will fail with proper error
       }
       
-      // Initialize Gemini with timeout — skip if it takes too long
-      try {
-        await GeminiService.initialize().timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            debugPrint('Gemini initialization timeout — continuing without Gemini');
-          },
-        );
-      } catch (e) {
-        debugPrint('Gemini initialization failed: $e');
-        // Continue anyway
-      }
+      // Initialize other services in parallel (non-critical, can fail gracefully)
+      debugPrint('🔄 Initializing non-critical services...');
+      await Future.wait([
+        FCMService().initialize().catchError((e) {
+          debugPrint('⚠️ FCMService initialization failed: $e');
+          return null;
+        }),
+        FalAiService.initialize().catchError((e) {
+          debugPrint('⚠️ FalAiService initialization failed: $e');
+          return null;
+        }),
+      ]);
+      
+      debugPrint('✅ All services initialized');
     } catch (e) {
-      debugPrint('Firebase initialization error: $e');
-      // Continue anyway — app will work offline
+      debugPrint('❌ Firebase initialization error: $e');
+      rethrow;
     }
   }
 
-  void _navigate() {
+  Future<void> _navigate() async {
     User? user;
     try {
+      // Wait for auth state to be available (max 3 seconds additional wait)
+      user = await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 3), onTimeout: () => FirebaseAuth.instance.currentUser);
+    } catch (e) {
+      debugPrint('Auth state detection error: $e');
       user = FirebaseAuth.instance.currentUser;
-    } catch (_) {
-      user = null;
     }
+
+    if (!mounted) return;
 
     final destination = user != null
         ? const MainShell()

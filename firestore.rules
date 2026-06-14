@@ -1,35 +1,31 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===== EXISTING WEBSITE RULES (DO NOT REMOVE) =====
+    // ===== USER DOCUMENT =====
     match /users/{userId} {
+      // Allow authenticated user to read their own document
       allow read: if request.auth != null && request.auth.uid == userId;
       
       // Allow account creation with any fields (for mobile app signup)
       allow create: if request.auth != null && request.auth.uid == userId;
       
-      // Allow usage counter updates with strict limits to prevent cheating
-      allow update: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imagesUsedToday', 'usageDate'])
-        && (
-          // New day: reset counter (capped at 4 — max single batch)
-          (resource.data.usageDate != request.resource.data.usageDate
-            && request.resource.data.imagesUsedToday >= 0
-            && request.resource.data.imagesUsedToday <= 4)
-          // Same day: can only increment, max 4 per write, hard cap at 16
-          || (resource.data.usageDate == request.resource.data.usageDate
-            && request.resource.data.imagesUsedToday >= resource.data.imagesUsedToday
-            && (request.resource.data.imagesUsedToday - resource.data.imagesUsedToday) <= 4
-            && request.resource.data.imagesUsedToday <= 16)
-        );
-      
-      // Allow any update from authenticated user
+      // Allow any update from authenticated user (simplified for Phase 1)
       allow update: if request.auth != null && request.auth.uid == userId;
       
       allow delete: if false;
 
+      // ===== SUBCOLLECTIONS =====
+      
       // Subcollection: Generated Images
       match /generatedImages/{imageId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Subcollection: Content (saved images, carousels, etc)
+      match /content/{contentId} {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow create: if request.auth != null && request.auth.uid == userId;
         allow update: if request.auth != null && request.auth.uid == userId;

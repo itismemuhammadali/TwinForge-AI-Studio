@@ -101,7 +101,7 @@ class FCMService {
       iOS: iosSettings,
     );
 
-    await _localNotifications.initialize(initSettings);
+    await _localNotifications.initialize(settings: initSettings);
   }
 
   /// Show a system notification banner when app is in foreground
@@ -110,10 +110,10 @@ class FCMService {
     if (notification == null) return;
 
     _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channel.id,
           _channel.name,

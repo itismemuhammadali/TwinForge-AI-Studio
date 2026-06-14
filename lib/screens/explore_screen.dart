@@ -6,6 +6,7 @@ import '../providers/user_provider.dart';
 import 'profile_screen.dart';
 import 'video_screen.dart';
 import 'broll_screen.dart';
+import 'carousel_screen.dart';
 import 'talking_head_screen.dart';
 import 'trending_screen.dart';
 import 'magazine_screen.dart';
@@ -106,15 +107,24 @@ class ExploreScreen extends StatelessWidget {
       ]),
       const SizedBox(height: 10),
       Row(children: [
+        Expanded(child: _card(context, label: 'Carousel',
+            bgColor: const Color(0xFF1a1a0a), accentColor: const Color(0xFF9B59B6),
+            icon: Icons.view_carousel_outlined, hasCarousel: true,
+            onTap: () => _push(context, const CarouselScreen()))),
+        const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'Magazine',
             bgColor: const Color(0xFF1a0a0a), accentColor: const Color(0xFFE74C3C),
             icon: Icons.newspaper_outlined, hasMagazine: true,
             onTap: () => _push(context, const MagazineScreen()))),
-        const SizedBox(width: 10),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
         Expanded(child: _card(context, label: 'Avatar',
             bgColor: const Color(0xFF0a0a1a), accentColor: const Color(0xFF7B68EE),
             icon: Icons.face_retouching_natural,
             onTap: () => _push(context, const TalkingHeadScreen()))),
+        const SizedBox(width: 10),
+        Expanded(child: Container()),
       ]),
     ]);
   }
@@ -124,7 +134,7 @@ class ExploreScreen extends StatelessWidget {
     required IconData icon, required VoidCallback onTap,
     bool hasPlay = false, bool hasTextOverlay = false,
     bool hasQuote = false, bool hasMagazine = false,
-    bool hasTrending = false,
+    bool hasTrending = false, bool hasCarousel = false,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -145,7 +155,8 @@ class ExploreScreen extends StatelessWidget {
             if (hasQuote) _quoteOverlay(),
             if (hasMagazine) _magazineOverlay(),
             if (hasTrending) _trendingOverlay(),
-            if (!hasTextOverlay && !hasQuote && !hasMagazine && !hasTrending)
+            if (hasCarousel) _carouselCardOverlay(),
+            if (!hasTextOverlay && !hasQuote && !hasMagazine && !hasTrending && !hasCarousel)
               Center(child: Icon(icon, color: accentColor.withValues(alpha: 0.3), size: 52)),
             if (hasPlay)
               Center(child: Container(
@@ -236,5 +247,24 @@ class ExploreScreen extends StatelessWidget {
       const Spacer(),
       Text('40 WOMEN LEADERS\nTO WATCH IN 2026', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.white, letterSpacing: 0.5, height: 1.4)),
     ])),
+  );
+
+  Widget _carouselCardOverlay() => Padding(
+    padding: const EdgeInsets.all(12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+      Text('Social Media', style: AppFonts.poppins(size: 11, weight: FontWeight.w700, color: const Color(0xFF9B59B6), letterSpacing: 1)),
+      const SizedBox(height: 6),
+      Text('Multi-frame carousels for Instagram, LinkedIn & more',
+          style: AppFonts.poppins(size: 9, color: AppColors.white.withValues(alpha: 0.8), height: 1.5)),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF9B59B6).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text('Ready-to-post', style: AppFonts.poppins(size: 8, weight: FontWeight.w700, color: const Color(0xFF9B59B6))),
+      ),
+    ]),
   );
 }

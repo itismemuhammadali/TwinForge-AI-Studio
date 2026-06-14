@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import 'generate_screen.dart';
-import 'gallery_screen.dart';
+import 'library_screen.dart';
 import 'carousel_screen.dart';
 import 'broll_screen.dart';
 import 'talking_head_screen.dart';
@@ -94,7 +94,7 @@ class HomeScreen extends StatelessWidget {
               title: 'Content Library',
               subtitle: 'Access and manage all your generated studio content.',
               tag: 'ACTIVE',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GalleryScreen())),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LibraryScreen())),
             ),
             const SizedBox(height: 32),
             _SectionTitle('PHASE 02', 'Carousel & B-Roll'),

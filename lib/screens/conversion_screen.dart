@@ -114,7 +114,7 @@ class ConversionScreen extends StatelessWidget {
                 color: const Color(0xFF27AE60),
                 onTap: () => _navigate(
                   context,
-                  CarouselScreen(content: content),
+                  const CarouselScreen(),
                 ),
               ),
               const SizedBox(height: 40),

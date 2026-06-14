@@ -41,6 +41,7 @@ class AppFonts {
     double size = 12,
     FontWeight weight = FontWeight.w400,
     Color color = AppColors.text,
+    FontStyle style = FontStyle.normal,
     double letterSpacing = 0,
     double height = 1.4,
   }) =>
@@ -48,6 +49,7 @@ class AppFonts {
         fontSize: size,
         fontWeight: weight,
         color: color,
+        fontStyle: style,
         letterSpacing: letterSpacing,
         height: height,
       );

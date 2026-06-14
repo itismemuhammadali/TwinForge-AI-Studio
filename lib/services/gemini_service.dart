@@ -1,15 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 class GeminiService {
-  static late String apiKey;
+  static String apiKey = '';
   static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
   /// Initialize Gemini Service with API key from Firebase Remote Config
   static Future<void> initialize() async {
+    debugLog('🔍 Starting Gemini Service initialization...');
     try {
       debugLog('🚀 Initializing Gemini Service...');
       
@@ -20,21 +22,30 @@ class GeminiService {
       });
       debugLog('✅ Defaults set');
 
-      // Fetch remote config with 1 hour cache
-      debugLog('🔄 Fetching remote config from Firebase...');
-      await _remoteConfig.fetchAndActivate();
-      debugLog('✅ Remote config fetched and activated');
+      debugLog('⏳ Fetching Remote Config...');
+      // Fetch remote config with 1 hour cache and a timeout
+      final fetchResult = await _remoteConfig.fetchAndActivate().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugLog('⚠️ Remote Config fetch timed out after 10s');
+          return false;
+        },
+      );
+      
+      debugLog('✅ Remote Config fetch result: $fetchResult');
 
       // Get API key from remote config
       apiKey = _remoteConfig.getString('gemini_api_key');
-      debugLog('🔑 API Key retrieved: ${apiKey.substring(0, 15)}...');
+      
+      debugLog('🔑 Gemini API key from Remote Config: ${apiKey.isEmpty ? "EMPTY" : "✅ Found (${apiKey.length} chars)"}');
 
       if (apiKey.isEmpty) {
-        debugLog('❌ Gemini API key is empty!');
-        throw Exception('Gemini API key not configured in Firebase Remote Config');
+        final errorMsg = 'Gemini API key not configured in Firebase Remote Config';
+        debugLog('❌ CRITICAL: $errorMsg');
+        throw Exception(errorMsg);
       }
 
-      debugLog('✅ Gemini API key loaded successfully from Firebase Remote Config');
+      debugLog('✅ Gemini Service initialized successfully');
     } catch (e) {
       debugLog('❌ Error initializing Gemini Service: $e');
       debugLog('❌ Stack trace: ${StackTrace.current}');
@@ -44,8 +55,7 @@ class GeminiService {
 
   /// Debug logging helper
   static void debugLog(String message) {
-    // Use developer.log instead of print for production
-    developer.log('[GeminiService] $message');
+    debugPrint('[GeminiService] $message');
   }
 
   /// Convert image file to base64 string
@@ -180,6 +190,264 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     }
   }
 
+  /// Download image from URL to base64 string
+  static Future<String> _urlToBase64(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        return base64Encode(response.bodyBytes);
+      } else {
+        throw Exception('Failed to download image from $url');
+      }
+    } catch (e) {
+      throw Exception('Error downloading image: $e');
+    }
+  }
+
+  /// Generate personalized image using template + filters + user photo
+  Future<List<String>> generateImageWithTemplateAndReference({
+    required String templateImageUrl,
+    required File userImageFile,
+    required String mood,
+    required String location,
+    required String outfit,
+    required String hairstyle,
+    required String makeup,
+    required String skin,
+    required String height,
+    required String bust,
+    required String waist,
+    required String hips,
+    required String angle,
+    required String ratio,
+    required int batch,
+    String customDescription = '',
+  }) async {
+    try {
+      debugLog('🎨 Preparing template-based generation...');
+      
+      // 1. Prepare images
+      final templateBase64 = await _urlToBase64(templateImageUrl);
+      final userBase64 = await _fileToBase64(userImageFile);
+
+      // 2. First, ask Gemini to analyze the template and extract pose details
+      final templateAnalysis = await _analyzeTemplateForPose(templateBase64);
+      debugLog('📋 Template analysis: $templateAnalysis');
+
+      // 3. Construct a detailed prompt using the analysis
+      final prompt = '''You are an expert photorealistic image generation AI.
+
+TASK: Generate a photorealistic image of the person in IMAGE 1, repositioned to match the exact pose and composition described below.
+
+IMAGE 1 - USER PHOTO:
+The person in this image should be used as the subject.
+Their face, identity, and appearance should be preserved exactly.
+
+POSE & COMPOSITION TO REPLICATE:
+$templateAnalysis
+
+APPEARANCE & STYLE CUSTOMIZATIONS:
+- Vibe/Mood: $mood
+- Location/Setting: $location
+- Outfit: $outfit
+- Hair Style: $hairstyle
+- Makeup: $makeup
+- Skin Style: $skin
+- Height: $height
+- Bust: $bust
+- Waist: $waist
+- Hips: $hips
+- Camera Angle: $angle
+- Aspect Ratio: $ratio
+${customDescription.isNotEmpty ? '\n- Custom Details: $customDescription' : ''}
+
+GENERATION INSTRUCTIONS:
+1. Take the person from IMAGE 1 - keep their face and identity
+2. Reposition their body to exactly match the pose described above
+3. Apply the customization filters
+4. Generate a NEW, photorealistic image
+5. Do NOT return the original image unchanged
+
+OUTPUT MUST:
+✅ Show the same person (recognizable face from IMAGE 1)
+✅ In the exact pose described
+✅ With all customizations applied
+✅ Professional and high-quality
+✅ Be a GENERATED image (not the original)
+
+Generate now.''';
+
+      // 4. Generate images
+      List<String> generatedImages = [];
+
+      for (int i = 0; i < batch; i++) {
+        try {
+          final imageData = await _generateImageWithUserAndPrompt(
+            userBase64,
+            prompt,
+            ratio,
+          );
+          generatedImages.add(imageData);
+        } catch (e) {
+          debugLog('Error generating image $i: $e');
+          generatedImages.add('error');
+        }
+      }
+
+      return generatedImages;
+    } catch (e) {
+      throw Exception('Failed to generate template-based images: $e');
+    }
+  }
+
+  /// Analyze template image to extract pose and composition details
+  Future<String> _analyzeTemplateForPose(String templateBase64) async {
+    try {
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+      );
+
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {
+                'inlineData': {
+                  'mimeType': 'image/jpeg',
+                  'data': templateBase64,
+                }
+              },
+              {
+                'text': '''Analyze this image and describe in detail:
+1. Body posture (standing, sitting, leaning, etc.)
+2. Exact body position and pose
+3. Limb positions (where are arms, hands, legs)
+4. Head position and angle
+5. Body angle relative to camera
+6. Where person is positioned in frame
+7. Lighting direction and style
+8. Background elements
+9. Overall composition and framing
+
+Be very specific and detailed. This will be used to recreate the pose on a different person.'''
+              }
+            ]
+          }
+        ]
+      };
+
+      debugLog('📋 Analyzing template for pose details...');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw Exception('Template analysis timeout'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+            for (final part in candidate['content']['parts']) {
+              if (part['text'] != null) {
+                final analysis = part['text'];
+                debugLog('✅ Template analysis complete');
+                return analysis;
+              }
+            }
+          }
+        }
+        throw Exception('No text response from template analysis');
+      } else {
+        throw Exception('Template analysis failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugLog('❌ Error analyzing template: $e');
+      return 'A person in a stylized pose with professional lighting';
+    }
+  }
+
+  /// Generate image using user photo + detailed text prompt
+  Future<String> _generateImageWithUserAndPrompt(
+    String userBase64,
+    String prompt,
+    String aspectRatio,
+  ) async {
+    try {
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+      );
+
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {
+                'inlineData': {
+                  'mimeType': 'image/jpeg',
+                  'data': userBase64,
+                }
+              },
+              {
+                'text': prompt,
+              }
+            ]
+          }
+        ],
+        'generationConfig': {
+          'imageConfig': {
+            'aspectRatio': _mapAspectRatio(aspectRatio),
+          }
+        }
+      };
+
+      debugLog('📤 Sending image generation request...');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 180),
+        onTimeout: () => throw Exception('Generation timeout'),
+      );
+
+      debugLog('📥 Received response with status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+            for (final part in candidate['content']['parts']) {
+              if (part['inlineData'] != null) {
+                final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
+                final imageData = part['inlineData']['data'];
+                debugLog('✅ Image generated successfully');
+                return 'data:$mimeType;base64,$imageData';
+              }
+            }
+          }
+        }
+
+        throw Exception('No image data in response');
+      } else {
+        final errorBody = response.body;
+        debugLog('❌ API Error: ${response.statusCode}');
+        debugLog('❌ Error details: $errorBody');
+        throw Exception('API returned status ${response.statusCode}');
+      }
+    } catch (e) {
+      debugLog('❌ Error in generation: $e');
+      rethrow;
+    }
+  }
+
   /// Generate a single image using Gemini 2.5 Flash Image
   Future<String> _generateSingleImage(
     String base64Image,
@@ -218,9 +486,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
         }
       };
 
-      debugLog('📤 Sending request to: ${url.scheme}://${url.host}');
-      debugLog('📊 Request body size: ${jsonEncode(requestBody).length} bytes');
-      debugLog('📊 Base64 image size: ${base64Image.length} chars');
+      debugLog('📤 Sending image generation request to Gemini API...');
 
       final response = await http.post(
         url,
@@ -237,44 +503,35 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       );
 
       debugLog('📥 Response received with status: ${response.statusCode}');
-      debugLog('📥 Response size: ${response.body.length} bytes');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        debugLog('✅ Response parsed successfully');
-        debugLog('📊 Response candidates: ${data['candidates']?.length ?? 0}');
 
-        // Extract image data from response
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
-          debugLog('🔍 Checking candidate 0...');
           
           if (candidate['content'] != null && candidate['content']['parts'] != null) {
             final parts = candidate['content']['parts'];
-            debugLog('📦 Found ${parts.length} parts in candidate');
             
             for (int i = 0; i < parts.length; i++) {
               final part = parts[i];
-              debugLog('🔎 Checking part $i: ${part.keys.join(', ')}');
               
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
-                debugLog('✅ Found image data! Type: $mimeType, Size: ${imageData.length} chars');
+                debugLog('✅ Image generated successfully');
                 return 'data:$mimeType;base64,$imageData';
               }
             }
           }
         }
 
-        debugLog('❌ No image data found in response structure');
-        debugLog('📋 Full response: ${jsonEncode(data).substring(0, 500)}');
+        debugLog('❌ No image data found in response');
         throw Exception('No image data in response');
       } else {
         final errorBody = response.body;
-        debugLog('❌ API Error: ${response.statusCode}');
-        debugLog('❌ Error response: $errorBody');
-        throw Exception('API returned status ${response.statusCode}: $errorBody');
+        debugLog('❌ API Error: ${response.statusCode}: $errorBody');
+        throw Exception('API returned status ${response.statusCode}');
       }
     } catch (e) {
       debugLog('❌ Exception in _generateSingleImage: $e');

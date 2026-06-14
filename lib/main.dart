@@ -5,6 +5,8 @@ import 'screens/splash_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/content_provider.dart';
 import 'providers/user_provider.dart';
+import 'providers/carousel_provider.dart';
+import 'services/firebase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +18,13 @@ void main() async {
     ),
   );
 
-  // Run app immediately — Firebase init happens inside SplashScreen
+  // Initialize Firebase before running the app to ensure Auth state is recovered
+  try {
+    await FirebaseService.initialize();
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
+
   runApp(const AimrTwinApp());
 }
 
@@ -30,6 +38,7 @@ class AimrTwinApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ContentProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => CarouselProvider()),
       ],
       child: MaterialApp(
         title: 'Twinora',

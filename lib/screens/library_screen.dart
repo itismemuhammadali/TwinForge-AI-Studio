@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:rxdart/rxdart.dart';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
@@ -15,7 +18,8 @@ import 'notifications_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   final bool fromBottomNav;
-  const LibraryScreen({super.key, this.fromBottomNav = false});
+  final bool isSelectionMode;
+  const LibraryScreen({super.key, this.fromBottomNav = false, this.isSelectionMode = false});
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -24,11 +28,12 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _tabLabels = ['All', 'Images', 'Carousels', 'Videos'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: _tabLabels.length, vsync: this);
   }
 
   @override
@@ -40,12 +45,22 @@ class _LibraryScreenState extends State<LibraryScreen>
   @override
   Widget build(BuildContext context) {
     final isBottomNav = widget.fromBottomNav;
+    final isSelectionMode = widget.isSelectionMode;
     final credits = context.watch<UserProvider>().credits ?? 0;
     void push(Widget s) => Navigator.push(context, MaterialPageRoute(builder: (_) => s));
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: isBottomNav ? null : AimrAppBar(actions: const []),
+      appBar: isBottomNav ? null : AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: isSelectionMode ? Text('SELECT IMAGE', style: AppFonts.poppins(size: 14, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2)) : null,
+        centerTitle: true,
+      ),
       body: Column(
         children: [
           // Bottom nav — full PremiumHeader (same as Explore)
@@ -56,51 +71,66 @@ class _LibraryScreenState extends State<LibraryScreen>
               creditsText: '$credits CREDITS',
             ),
 
-          // Tab bar
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF0E0E0A),
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.gold.withValues(alpha: 0.1),
-                  width: 0.5,
-                ),
+          SizedBox(height: isBottomNav ? 24 : 12),
+          
+          if (!isSelectionMode)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('MY LIBRARY',
+                      style: AppFonts.poppins(
+                        size: 10, weight: FontWeight.w700,
+                        color: AppColors.gold, letterSpacing: 3,
+                      )),
+                  const SizedBox(height: 4),
+                  Text('Your Studio',
+                      style: AppFonts.playfair(
+                        size: 28, weight: FontWeight.w900,
+                        color: AppColors.white,
+                      )),
+                ],
               ),
             ),
-            child: !isBottomNav
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('MY LIBRARY',
-                            style: AppFonts.poppins(
-                              size: 10, weight: FontWeight.w700,
-                              color: AppColors.gold, letterSpacing: 3,
-                            )),
-                        const SizedBox(height: 4),
-                        Text('Your Generated Content',
-                            style: AppFonts.playfair(
-                              size: 28, weight: FontWeight.w900,
-                              color: AppColors.white,
-                            )),
-                        const SizedBox(height: 16),
-                        _buildTabBar(),
-                      ],
-                    ),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildTabBar(),
-                  ),
+          
+          const SizedBox(height: 20),
+
+          // Tab bar (Stylized like GalleryScreen)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.white.withValues(alpha: 0.06), width: 0.5),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 0.5),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelStyle: AppFonts.poppins(size: 10, weight: FontWeight.w700, letterSpacing: 1),
+              unselectedLabelStyle: AppFonts.poppins(size: 10),
+              labelColor: AppColors.gold,
+              unselectedLabelColor: AppColors.muted,
+              tabs: _tabLabels.map((l) => Tab(text: l)).toList(),
+            ),
           ),
+          
+          const SizedBox(height: 20),
 
           // Tab content
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                _ImagesTab(),
+                _AllTab(isSelectionMode: isSelectionMode),
+                _ImagesTab(isSelectionMode: isSelectionMode),
+                const _CarouselsTab(),
                 const _VideosTab(),
               ],
             ),
@@ -109,68 +139,50 @@ class _LibraryScreenState extends State<LibraryScreen>
       ),
     );
   }
-
-  Widget _buildTabBar() {
-    return TabBar(
-      controller: _tabController,
-      indicatorColor: AppColors.gold,
-      indicatorWeight: 2,
-      labelColor: AppColors.gold,
-      unselectedLabelColor: AppColors.muted,
-      labelStyle: AppFonts.poppins(
-        size: 11, weight: FontWeight.w700, letterSpacing: 1.5,
-      ),
-      unselectedLabelStyle: AppFonts.poppins(
-        size: 11, weight: FontWeight.w500,
-      ),
-      tabs: const [
-        Tab(text: 'IMAGES'),
-        Tab(text: 'VIDEOS'),
-      ],
-    );
-  }
 }
 
-// ── Images Tab ────────────────────────────────────────────────────────────────
-class _ImagesTab extends StatelessWidget {
+// ── All Tab ───────────────────────────────────────────────────────────────────
+class _AllTab extends StatelessWidget {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  final bool isSelectionMode;
 
-  _ImagesTab();
+  _AllTab({this.isSelectionMode = false});
 
   @override
   Widget build(BuildContext context) {
     final uid = _auth.currentUser?.uid;
+    if (uid == null) return const Center(child: Text('Sign in to view library'));
 
-    if (uid == null) {
-      return _emptyState('Sign in to view your library', Icons.lock_outline);
-    }
+    // Combined stream from content and generatedImages
+    final contentStream = _firestore.collection('users').doc(uid).collection('content').snapshots();
+    final imagesStream = _firestore.collection('users').doc(uid).collection('generatedImages').snapshots();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('generatedImages')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+    return StreamBuilder<List<QuerySnapshot>>(
+      stream: Rx.combineLatest2(contentStream, imagesStream, (a, b) => [a, b]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2),
-          );
+          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
         }
 
-        if (snapshot.hasError) {
-          return _emptyState('Error loading images', Icons.error_outline);
+        final List<DocumentSnapshot> allDocs = [];
+        if (snapshot.hasData) {
+          for (var snap in snapshot.data!) {
+            allDocs.addAll(snap.docs);
+          }
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        // Sort by createdAt
+        allDocs.sort((a, b) {
+          final aTime = (a.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+          final bTime = (b.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
 
-        if (docs.isEmpty) {
-          return _emptyState(
-            'No images yet.\nGenerate your first image!',
-            Icons.image_outlined,
-          );
+        if (allDocs.isEmpty) {
+          return _emptyState('No content found', Icons.auto_awesome_outlined);
         }
 
         return GridView.builder(
@@ -181,10 +193,23 @@ class _ImagesTab extends StatelessWidget {
             mainAxisSpacing: 12,
             childAspectRatio: 0.75,
           ),
-          itemCount: docs.length,
+          itemCount: allDocs.length,
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-            return _ImageCard(data: data, docId: docs[index].id);
+            final data = allDocs[index].data() as Map<String, dynamic>;
+            
+            // Map originalImageUrl to imageUrl if needed
+            if (data['originalImageUrl'] != null && data['imageUrl'] == null) {
+              data['imageUrl'] = data['originalImageUrl'];
+            }
+            
+            final type = data['type'] as String? ?? 'image';
+            
+            if (type == 'carousel') {
+              return _CarouselCard(data: data, docId: allDocs[index].id);
+            } else if (type == 'video') {
+              return _VideoCard(data: data, docId: allDocs[index].id);
+            }
+            return _ImageCard(data: data, docId: allDocs[index].id, isSelectionMode: isSelectionMode);
           },
         );
       },
@@ -198,37 +223,319 @@ class _ImagesTab extends StatelessWidget {
         children: [
           Icon(icon, color: AppColors.gold.withValues(alpha: 0.3), size: 64),
           const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: AppFonts.poppins(
-              size: 14,
-              color: AppColors.muted,
-              height: 1.6,
-            ),
-          ),
+          Text(message, textAlign: TextAlign.center, style: AppFonts.poppins(size: 14, color: AppColors.muted)),
         ],
       ),
     );
   }
 }
 
-// ── Image Card ────────────────────────────────────────────────────────────────
-class _ImageCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  final String docId;
+// ── Images Tab ────────────────────────────────────────────────────────────────
+class _ImagesTab extends StatelessWidget {
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  final bool isSelectionMode;
 
-  const _ImageCard({required this.data, required this.docId});
+  _ImagesTab({this.isSelectionMode = false});
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = data['imageUrl'] as String? ?? '';
-    final outfit = data['outfit'] as String? ?? '';
-    final location = data['location'] as String? ?? '';
-    final gender = data['gender'] as String? ?? '';
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return const SizedBox();
+
+    final contentStream = _firestore.collection('users').doc(uid).collection('content').where('type', isEqualTo: 'image').snapshots();
+    final imagesStream = _firestore.collection('users').doc(uid).collection('generatedImages').snapshots();
+
+    return StreamBuilder<List<QuerySnapshot>>(
+      stream: Rx.combineLatest2(contentStream, imagesStream, (a, b) => [a, b]),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+        }
+
+        final List<DocumentSnapshot> allDocs = [];
+        if (snapshot.hasData) {
+          for (var snap in snapshot.data!) {
+            allDocs.addAll(snap.docs);
+          }
+        }
+
+        // Sort by createdAt
+        allDocs.sort((a, b) {
+          final aTime = (a.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+          final bTime = (b.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
+
+        if (allDocs.isEmpty) {
+          return _emptyState('No images yet', Icons.image_outlined);
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: allDocs.length,
+          itemBuilder: (context, index) {
+            final data = allDocs[index].data() as Map<String, dynamic>;
+            
+            // Map originalImageUrl to imageUrl if needed
+            if (data['originalImageUrl'] != null && data['imageUrl'] == null) {
+              data['imageUrl'] = data['originalImageUrl'];
+            }
+            
+            return _ImageCard(data: data, docId: allDocs[index].id, isSelectionMode: isSelectionMode);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _emptyState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: AppColors.gold.withValues(alpha: 0.3), size: 64),
+          const SizedBox(height: 16),
+          Text(message, textAlign: TextAlign.center, style: AppFonts.poppins(size: 14, color: AppColors.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Carousels Tab ─────────────────────────────────────────────────────────────
+class _CarouselsTab extends StatelessWidget {
+  const _CarouselsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('content')
+          .where('type', isEqualTo: 'carousel')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return _emptyState('No carousels yet', Icons.view_carousel_outlined);
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            return _CarouselCard(data: docs[index].data() as Map<String, dynamic>, docId: docs[index].id);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _emptyState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: AppColors.gold.withValues(alpha: 0.3), size: 64),
+          const SizedBox(height: 16),
+          Text(message, textAlign: TextAlign.center, style: AppFonts.poppins(size: 14, color: AppColors.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Carousel Card ─────────────────────────────────────────────────────────────
+class _CarouselCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final String docId;
+
+  const _CarouselCard({required this.data, required this.docId});
+
+  @override
+  Widget build(BuildContext context) {
+    final slides = data['slides'] as List? ?? [];
+    final firstSlideUrl = slides.isNotEmpty ? slides[0]['backgroundImageUrl'] : '';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.15), width: 0.8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (firstSlideUrl != null && firstSlideUrl.isNotEmpty)
+              Image.network(firstSlideUrl, fit: BoxFit.cover)
+            else
+              const Center(child: Icon(Icons.view_carousel, color: AppColors.gold, size: 40)),
+            
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Carousel', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+                    Text('${slides.length} Slides', style: AppFonts.poppins(size: 10, color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Video Card ────────────────────────────────────────────────────────────────
+class _VideoCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final String docId;
+
+  const _VideoCard({required this.data, required this.docId});
+
+  @override
+  Widget build(BuildContext context) {
+    final videoUrl = data['videoUrl'] as String? ?? '';
+    final thumbnailUrl = data['thumbnailUrl'] as String? ?? '';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.15), width: 0.8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (thumbnailUrl.isNotEmpty)
+              Image.network(thumbnailUrl, fit: BoxFit.cover)
+            else
+              const Center(child: Icon(Icons.play_circle_fill, color: AppColors.gold, size: 40)),
+            
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+                child: Text('Video', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Image Card ────────────────────────────────────────────────────────────────
+class _ImageCard extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final String docId;
+  final bool isSelectionMode;
+
+  const _ImageCard({required this.data, required this.docId, this.isSelectionMode = false});
+
+  @override
+  State<_ImageCard> createState() => _ImageCardState();
+}
+
+class _ImageCardState extends State<_ImageCard> {
+  bool _isDownloading = false;
+
+  Future<void> _handleTap() async {
+    if (widget.isSelectionMode) {
+      setState(() => _isDownloading = true);
+      try {
+        final imageUrl = widget.data['imageUrl'] as String? ?? '';
+        File? imageFile;
+
+        if (imageUrl.startsWith('https://')) {
+          final response = await http.get(Uri.parse(imageUrl));
+          if (response.statusCode == 200) {
+            final tempDir = await getTemporaryDirectory();
+            final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
+            await file.writeAsBytes(response.bodyBytes);
+            imageFile = file;
+          }
+        } else if (imageUrl.startsWith('data:image')) {
+          final base64Str = imageUrl.split(',')[1];
+          final bytes = base64Decode(base64Str);
+          final tempDir = await getTemporaryDirectory();
+          final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          await file.writeAsBytes(bytes);
+          imageFile = file;
+        }
+
+        if (mounted && imageFile != null) {
+          Navigator.pop(context, imageFile);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error selecting image: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => _isDownloading = false);
+      }
+    } else {
+      _showImageDetail(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = widget.data['imageUrl'] as String? ?? '';
+    final outfit = widget.data['outfit'] as String? ?? '';
+    final location = widget.data['location'] as String? ?? '';
+    final gender = widget.data['gender'] as String? ?? '';
 
     return GestureDetector(
-      onTap: () => _showImageDetail(context),
+      onTap: _isDownloading ? null : _handleTap,
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -245,6 +552,12 @@ class _ImageCard extends StatelessWidget {
             children: [
               // Image
               _buildImage(imageUrl),
+
+              if (_isDownloading)
+                Container(
+                  color: Colors.black45,
+                  child: const Center(child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2)),
+                ),
 
               // Bottom overlay
               Positioned(
@@ -353,7 +666,7 @@ class _ImageCard extends StatelessWidget {
   }
 
   void _showImageDetail(BuildContext context) {
-    final imageUrl = data['imageUrl'] as String? ?? '';
+    final imageUrl = widget.data['imageUrl'] as String? ?? '';
 
     showModalBottomSheet(
       context: context,
@@ -394,11 +707,11 @@ class _ImageCard extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  _detailRow('Outfit', data['outfit'] ?? ''),
+                  _detailRow('Outfit', widget.data['outfit'] ?? ''),
                   const SizedBox(height: 6),
-                  _detailRow('Location', data['location'] ?? ''),
+                  _detailRow('Location', widget.data['location'] ?? ''),
                   const SizedBox(height: 6),
-                  _detailRow('Mood', data['mood'] ?? ''),
+                  _detailRow('Mood', widget.data['mood'] ?? ''),
                   const SizedBox(height: 16),
 
                   // Download button

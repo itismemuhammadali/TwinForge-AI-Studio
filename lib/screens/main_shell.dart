@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'explore_screen.dart';
 import 'photoshoot_screen.dart';
-import 'video_screen.dart';
+import 'video_templates_screen.dart';
 import 'edit_screen.dart';
 import 'library_screen.dart';
 
@@ -18,7 +18,7 @@ class _MainShellState extends State<MainShell> {
   final List<Widget> _screens = const [
     ExploreScreen(),
     PhotoshootScreen(),
-    VideoScreen(),
+    VideoTemplatesScreen(),
     EditScreen(),
     LibraryScreen(fromBottomNav: true),
   ];

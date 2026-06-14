@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import 'dart:io';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../constants/studio_options.dart';
 import '../models/generated_content.dart';
+import '../services/stock_image_service.dart';
+import '../services/gemini_service.dart';
 import 'image_edit_screen.dart';
 
 class GenerateScreen extends StatefulWidget {
   final String? presetStyle;
-  const GenerateScreen({super.key, this.presetStyle});
+  final StockImage? templateImage;
+  const GenerateScreen({
+    super.key,
+    this.presetStyle,
+    this.templateImage,
+  });
   @override
   State<GenerateScreen> createState() => _GenerateScreenState();
 }
@@ -28,7 +38,9 @@ class _GenerateScreenState extends State<GenerateScreen> {
   int    _batch     = 4;
   bool   _hasImage  = false;
   bool   _generating = false;
+  File? _selectedImage;
   final  _enhCtrl   = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -38,55 +50,252 @@ class _GenerateScreenState extends State<GenerateScreen> {
     _outfit   = StudioOptions.outfitStyles[0];
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (pickedFile != null && mounted) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+          _hasImage = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+      );
+
+      if (pickedFile != null && mounted) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+          _hasImage = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error taking photo: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AimrAppBar(actions: []),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(children: [
-          const SizedBox(height: 32),
-          if (widget.presetStyle != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  Text('GENERATE',
+                      style: AppFonts.poppins(
+                        size: 10, weight: FontWeight.w700,
+                        color: AppColors.gold, letterSpacing: 3,
+                      )),
+                  const SizedBox(height: 8),
+                  Text('Your Twin',
+                      style: AppFonts.playfair(
+                        size: 32, weight: FontWeight.w900, color: AppColors.white,
+                      )),
+                  const SizedBox(height: 24),
+                ],
               ),
-              child: Row(children: [
-                Icon(Icons.auto_awesome, color: AppColors.gold, size: 20),
-                const SizedBox(width: 12),
-                Expanded(child: Text('Using Template: ${widget.presetStyle}',
-                    style: AppFonts.poppins(size: 12, weight: FontWeight.w700, color: AppColors.gold))),
-                IconButton(
-                  icon: Icon(Icons.close, color: AppColors.gold.withValues(alpha: 0.6), size: 18),
-                  onPressed: () => Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const GenerateScreen())),
-                ),
-              ]),
             ),
-            const SizedBox(height: 24),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(children: [
+                  const SizedBox(height: 32),
+                  if (widget.presetStyle != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
+                      ),
+                      child: Row(children: [
+                        Icon(Icons.auto_awesome, color: AppColors.gold, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text('Using Template: ${widget.presetStyle}',
+                            style: AppFonts.poppins(size: 12, weight: FontWeight.w700, color: AppColors.gold))),
+                        IconButton(
+                          icon: Icon(Icons.close, color: AppColors.gold.withValues(alpha: 0.6), size: 18),
+                          onPressed: () => Navigator.pushReplacement(context,
+                              MaterialPageRoute(builder: (_) => const GenerateScreen())),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  // Display template image if provided
+                  if (widget.templateImage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 1),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Template Image (Style Reference)',
+                            style: AppFonts.poppins(
+                              size: 12,
+                              weight: FontWeight.w700,
+                              color: AppColors.gold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              widget.templateImage!.imageUrl,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 200,
+                                  color: AppColors.inputBg,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.image_not_supported,
+                                      color: AppColors.muted,
+                                      size: 40,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'By: ${widget.templateImage!.photographer}',
+                            style: AppFonts.poppins(
+                              size: 10,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                          Text(
+                            'Source: ${widget.templateImage!.source}',
+                            style: AppFonts.poppins(
+                              size: 10,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  _buildPhase01(),
+                  const SizedBox(height: 56),
+                  _buildPhase02(),
+                  const SizedBox(height: 56),
+                  _buildPhase03(),
+                  const SizedBox(height: 56),
+                  _buildPhase04(),
+                  const SizedBox(height: 40),
+                ]),
+              ),
+            ),
           ],
-          _buildPhase01(),
-          const SizedBox(height: 56),
-          _buildPhase02(),
-          const SizedBox(height: 56),
-          _buildPhase03(),
-          const SizedBox(height: 56),
-          _buildPhase04(),
-          const SizedBox(height: 40),
-        ]),
+        ),
       ),
     );
   }
 
   Widget _buildPhase01() => Column(children: [
-    const PhaseHeader(phase: 'PHASE 01', title: 'Upload Source'),
-    const SizedBox(height: 32),
+    const PhaseHeader(phase: 'PHASE 01', title: 'Upload Your Photo'),
+    const SizedBox(height: 16),
     GestureDetector(
-      onTap: () => setState(() => _hasImage = !_hasImage),
+      onTap: _hasImage ? () {
+        // Show options to replace image
+        showModalBottomSheet(
+          context: context,
+          builder: (context) => Container(
+            color: AppColors.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.camera_alt, color: AppColors.gold),
+                    title: Text('Take Photo', style: AppFonts.poppins(color: AppColors.white)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImageFromCamera();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.photo_library, color: AppColors.gold),
+                    title: Text('Choose from Gallery', style: AppFonts.poppins(color: AppColors.white)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } : () {
+        // Show options to pick image
+        showModalBottomSheet(
+          context: context,
+          builder: (context) => Container(
+            color: AppColors.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.camera_alt, color: AppColors.gold),
+                    title: Text('Take Photo', style: AppFonts.poppins(color: AppColors.white)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImageFromCamera();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.photo_library, color: AppColors.gold),
+                    title: Text('Choose from Gallery', style: AppFonts.poppins(color: AppColors.white)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
       child: Container(
         width: double.infinity, height: 300,
         decoration: BoxDecoration(
@@ -97,12 +306,14 @@ class _GenerateScreenState extends State<GenerateScreen> {
             width: 0.8,
           ),
         ),
-        child: _hasImage
+        child: _hasImage && _selectedImage != null
             ? Stack(fit: StackFit.expand, children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(32),
-                  child: Container(color: AppColors.surface,
-                      child: const Icon(Icons.person, color: AppColors.muted, size: 80)),
+                  child: Image.file(
+                    _selectedImage!,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 Positioned(bottom: 16, right: 16,
                   child: Container(
@@ -112,7 +323,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
                     ),
-                    child: Text('Replace Image',
+                    child: Text('Change Image',
                         style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.white)),
                   ),
                 ),
@@ -128,7 +339,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   child: const Icon(Icons.add_photo_alternate_outlined, color: AppColors.gold, size: 32),
                 ),
                 const SizedBox(height: 16),
-                Text('Drop Source', style: AppFonts.playfair(size: 22, style: FontStyle.italic, color: AppColors.white)),
+                Text('Upload Your Photo', style: AppFonts.playfair(size: 22, style: FontStyle.italic, color: AppColors.white)),
                 const SizedBox(height: 6),
                 Text('EDITORIAL REFERENCE',
                     style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 3)),
@@ -201,31 +412,6 @@ class _GenerateScreenState extends State<GenerateScreen> {
           onChanged: (v) => setState(() => _ratio = v))),
     ]),
     const SizedBox(height: 24),
-    // Batch size slider
-    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('BATCH SIZE',
-            style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 3)),
-        Text('$_batch Images',
-            style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
-      ]),
-      const SizedBox(height: 12),
-      SliderTheme(
-        data: SliderTheme.of(context).copyWith(
-          activeTrackColor: AppColors.gold,
-          inactiveTrackColor: AppColors.white.withValues(alpha: 0.1),
-          thumbColor: AppColors.gold,
-          overlayColor: AppColors.gold.withValues(alpha: 0.1),
-          trackHeight: 2,
-        ),
-        child: Slider(
-          value: _batch.toDouble(),
-          min: 1, max: 4, divisions: 3,
-          onChanged: (v) => setState(() => _batch = v.round()),
-        ),
-      ),
-    ]),
-    const SizedBox(height: 24),
     // Custom enhancer
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('OPTIONAL: MAKE IT CUSTOM',
@@ -254,19 +440,11 @@ class _GenerateScreenState extends State<GenerateScreen> {
       ),
     ]),
     const SizedBox(height: 40),
-    // Credits info
-    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('STUDIO CREDIT USAGE: ',
-          style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.white.withValues(alpha: 0.4), letterSpacing: 2)),
-      Text('0 / 16 CREDITS',
-          style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2)),
-    ]),
-    const SizedBox(height: 20),
     GoldButton(
       label: _generating ? 'MANIFESTING...' : 'RENDER TWIN',
       loading: _generating,
       onTap: () async {
-        if (!_hasImage) {
+        if (!_hasImage || _selectedImage == null) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             backgroundColor: AppColors.surface,
             content: Text('Please upload a source photo first.',
@@ -274,17 +452,67 @@ class _GenerateScreenState extends State<GenerateScreen> {
           ));
           return;
         }
-        
+
         setState(() => _generating = true);
         
         try {
-          // Simulate generation
-          await Future.delayed(const Duration(seconds: 2));
+          final geminiService = GeminiService();
+          List<String> generatedImages;
+
+          if (widget.templateImage != null) {
+            // Path 1: Template-Based Generation (Dual Reference)
+            generatedImages = await geminiService.generateImageWithTemplateAndReference(
+              templateImageUrl: widget.templateImage!.imageUrl,
+              userImageFile: _selectedImage!,
+              mood: _mood,
+              location: _location,
+              outfit: _outfit,
+              hairstyle: _hairstyle,
+              makeup: _makeup,
+              skin: _skin,
+              height: _height,
+              bust: _bust,
+              waist: _waist,
+              hips: _hips,
+              angle: _angle,
+              ratio: _ratio,
+              batch: _batch,
+              customDescription: _enhCtrl.text,
+            );
+          } else {
+            // Path 2: Standard Reference-Based Generation (Single Reference)
+            generatedImages = await geminiService.generateImagesWithReference(
+              referenceImage: _selectedImage!,
+              mood: _mood,
+              location: _location,
+              outfit: _outfit,
+              hairstyle: _hairstyle,
+              makeup: _makeup,
+              skin: _skin,
+              height: _height,
+              bust: _bust,
+              waist: _waist,
+              hips: _hips,
+              angle: _angle,
+              aspectRatio: _ratio,
+              numberOfImages: _batch,
+            );
+          }
+
+          // Find the first successful image
+          final firstValidImage = generatedImages.firstWhere(
+            (img) => img != 'error' && img.isNotEmpty,
+            orElse: () => '',
+          );
+
+          if (firstValidImage.isEmpty) {
+            throw Exception('All generation attempts failed. Please try again.');
+          }
           
           // Create generated content
           final generatedContent = GeneratedContent(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
-            originalImageUrl: 'https://via.placeholder.com/512x512?text=Generated+Image',
+            originalImageUrl: firstValidImage,
             prompt: _enhCtrl.text.isNotEmpty ? _enhCtrl.text : '$_mood, $_location, $_outfit',
             createdAt: DateTime.now(),
             contentType: 'original',
@@ -302,6 +530,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
               'angle': _angle,
               'ratio': _ratio,
               'batch': _batch,
+              'all_images': generatedImages.where((img) => img != 'error' && img.isNotEmpty).toList(),
             },
           );
           
@@ -317,6 +546,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
             );
           }
         } catch (e) {
+          debugPrint('❌ GENERATION ERROR: $e');
           if (mounted) {
             setState(() => _generating = false);
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(

@@ -26,6 +26,20 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ===== EDITED IMAGES =====
+    match /users/{userId}/edits/{imageId} {
+      // Allow users to read their own edited images
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow users to upload edited images
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow users to delete their own edited images
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // ===== GENERATED VIDEOS =====
     match /users/{userId}/generatedVideos/{videoId} {
       // Allow users to read their own generated videos

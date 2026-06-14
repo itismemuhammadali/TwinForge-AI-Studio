@@ -44,11 +44,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    apiKey: 'AIzaSyBBe5B5PXewFvpaxIg-XjnCJ95K12XR3kg',
+    appId: '1:298990602880:android:f53d8823bcd7cd05297465',
+    messagingSenderId: '298990602880',
+    projectId: 'aimr-twin-studio',
+    storageBucket: 'aimr-twin-studio.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

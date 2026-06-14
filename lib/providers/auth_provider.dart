@@ -33,7 +33,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userCredential = await _firebaseService.signUp(email, password);
+      final userCredential = await _firebaseService.signUp(email, password).timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => throw Exception('Connection timeout. Please check your internet or Firebase configuration.'),
+      );
       
       // Update display name
       await userCredential.user?.updateDisplayName(displayName);
@@ -52,14 +55,15 @@ class AuthProvider extends ChangeNotifier {
           'subscription': 'free_trial',
           'imagesUsedToday': 0,
           'usageDate': DateTime.now().toIso8601String().split('T')[0],
-        });
+        }).timeout(const Duration(seconds: 15));
       } catch (firestoreError) {
+        debugPrint('Firestore: Profile creation failed: $firestoreError');
         // Firestore write failed but auth succeeded — not fatal, continue
       }
 
-      // Send verification email directly on the new user object
+      // Send verification email
       try {
-        await userCredential.user?.sendEmailVerification();
+        await userCredential.user?.sendEmailVerification().timeout(const Duration(seconds: 10));
       } catch (_) {}
       
       _currentUser = userCredential.user;
@@ -72,7 +76,9 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Sign up failed. Please try again.';
+      _errorMessage = e.toString().contains('timeout')
+          ? 'Connection timed out. Please try again.'
+          : 'Sign up failed. Please try again.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -85,13 +91,20 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userCredential = await _firebaseService.signIn(email, password);
+      final userCredential = await _firebaseService.signIn(email, password).timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => throw Exception('Connection timeout. Please check your internet or Firebase configuration.'),
+      );
       _currentUser = userCredential.user;
       _isLoading = false;
       notifyListeners();
 
       // Save FCM token after login
-      await FCMService().onUserLogin();
+      try {
+        await FCMService().onUserLogin().timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('FCM: Token update failed: $e');
+      }
 
       return true;
     } on FirebaseAuthException catch (e) {
@@ -100,7 +113,9 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Sign in failed. Please try again.';
+      _errorMessage = e.toString().contains('timeout') 
+          ? 'Connection timed out. Please try again.' 
+          : 'Sign in failed. Please try again.';
       _isLoading = false;
       notifyListeners();
       return false;
