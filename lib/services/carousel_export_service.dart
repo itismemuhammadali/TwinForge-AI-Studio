@@ -487,6 +487,44 @@ class CarouselExportService {
     }
   }
 
+  /// Export entire carousel to ZIP bytes for Firebase upload
+  static Future<Uint8List> exportCarouselToZipBytes(
+    Carousel carousel,
+  ) async {
+    try {
+      debugLog('📦 Starting carousel export to bytes...');
+
+      final archive = Archive();
+      int slideNumber = 1;
+
+      // Render each slide
+      for (final slide in carousel.slides) {
+        debugLog('⏳ Rendering slide $slideNumber of ${carousel.slides.length}...');
+        final pngBytes = await renderSlideToPng(slide);
+        archive.addFile(
+          ArchiveFile(
+            'slide$slideNumber.png',
+            pngBytes.length,
+            pngBytes,
+          ),
+        );
+        slideNumber++;
+      }
+
+      final encoder = ZipEncoder();
+      final zipBytes = encoder.encode(archive);
+
+      if (zipBytes == null) {
+        throw Exception('Failed to encode ZIP file');
+      }
+
+      return Uint8List.fromList(zipBytes);
+    } catch (e) {
+      debugLog('❌ Error exporting carousel to bytes: $e');
+      rethrow;
+    }
+  }
+
   /// Get downloads directory
   static Future<Directory?> getDownloadsDirectory() async {
     try {

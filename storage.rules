@@ -68,6 +68,20 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ===== GENERATED CAROUSELS (ZIP files) =====
+    match /users/{userId}/generatedCarousels/{carouselId} {
+      // Allow users to read their own generated carousels
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow users to upload carousel ZIP files
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024 // Max 50MB for ZIP
+        && request.resource.contentType == 'application/zip'; // Only ZIP files
+      
+      // Allow users to delete their own carousels
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // ===== PUBLIC ASSETS (App logos, etc.) =====
     match /public/{allPaths=**} {
       // Allow anyone to read public assets

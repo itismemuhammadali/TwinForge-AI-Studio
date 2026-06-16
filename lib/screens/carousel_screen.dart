@@ -148,7 +148,7 @@ class _CarouselScreenState extends State<CarouselScreen> {
     debugLog('✅ Proceeding with ${carouselProvider.uploadedImages.length} images');
 
     if (mounted) {
-      _push(context, const CarouselCategoryScreen());
+      _push(context, CarouselCategoryScreen());
     }
   }
 
@@ -160,19 +160,62 @@ class _CarouselScreenState extends State<CarouselScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
+      appBar: AimrAppBar(
+        actions: [],
+      ),
       body: Column(
         children: [
-          PremiumHeader(
-            onProfileTap: () => _push(context, const ProfileScreen()),
-            onSettingsTap: () => _push(context, const NotificationsScreen()),
-            creditsText: '$credits CREDITS',
-          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Credits Display
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.gold.withValues(alpha: 0.2),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.gold,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.gold.withValues(alpha: 0.6),
+                                  blurRadius: 8,
+                                  spreadRadius: 0,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$credits CREDITS',
+                            style: AppFonts.poppins(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: AppColors.gold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   // Header
                   Text(
                     'CAROUSEL',

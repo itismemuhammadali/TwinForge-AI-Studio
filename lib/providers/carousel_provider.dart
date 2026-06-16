@@ -143,12 +143,20 @@ class CarouselProvider extends ChangeNotifier {
     // Take exactly 5
     final urls = imageUrls.take(5).toList();
 
+    debugLog('🔍 Setting background images: $urls');
+
     // Update carousel slides with background images
     final updatedSlides = carousel.slides.asMap().entries.map((entry) {
       final index = entry.key;
       final slide = entry.value;
+      final newUrl = index < urls.length ? urls[index] : null;
+      debugLog('  Slide ${index + 1}: $newUrl (was: ${slide.backgroundImageUrl})');
       return index < urls.length
-          ? slide.copyWith(backgroundImageUrl: urls[index])
+          ? CarouselSlide(
+              id: slide.id,
+              backgroundImageUrl: urls[index],
+              overlays: slide.overlays,
+            )
           : slide;
     }).toList();
 

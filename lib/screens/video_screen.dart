@@ -6,6 +6,8 @@ import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/stock_image_service.dart';
 
+import 'profile_screen.dart';
+
 class VideoScreen extends StatefulWidget {
   final StockVideo? templateVideo;
   const VideoScreen({super.key, this.templateVideo});
@@ -173,7 +175,9 @@ class _VideoScreenState extends State<VideoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: AimrAppBar(actions: const []),
+      appBar: AimrAppBar(
+        actions: [],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -531,6 +535,62 @@ class _VideoScreenState extends State<VideoScreen> {
                 const SizedBox(height: 24),
 
                 // Generate Button
+                if (widget.templateVideo != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.gold.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.auto_awesome,
+                            color: AppColors.gold,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'PREMIUM VIDEO EXTRACTION',
+                                style: AppFonts.poppins(
+                                  size: 10,
+                                  weight: FontWeight.w800,
+                                  color: AppColors.gold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Processing video templates requires complex frame-by-frame analysis, which may take an extra moment.',
+                                style: AppFonts.poppins(
+                                  size: 11,
+                                  color: AppColors.white.withValues(alpha: 0.8),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 GoldButton(
                   label: 'CREATE VIDEO',
                   onTap: () {

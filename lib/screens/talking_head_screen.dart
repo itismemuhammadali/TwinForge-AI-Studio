@@ -4,6 +4,8 @@ import '../widgets/app_widgets.dart';
 import '../constants/studio_options.dart';
 import '../models/generated_content.dart';
 
+import 'profile_screen.dart';
+
 class TalkingHeadScreen extends StatefulWidget {
   final GeneratedContent? content;
   const TalkingHeadScreen({super.key, this.content});
@@ -26,13 +28,18 @@ class _TalkingHeadScreenState extends State<TalkingHeadScreen> {
   }
 
   @override
-  void dispose() { _scriptCtrl.dispose(); super.dispose(); }
+  void dispose() { 
+    _scriptCtrl.dispose(); 
+    super.dispose(); 
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: const AimrAppBar(),
+      appBar: AimrAppBar(
+        actions: [],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
         child: Column(children: [

@@ -367,6 +367,63 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ],
 
+                        const SizedBox(height: 32),
+
+                        // Privacy Disclaimer
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.gold.withValues(alpha: 0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.security,
+                                  color: AppColors.gold,
+                                  size: 16,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'PRIVACY & ETHICS POLICY',
+                                      style: AppFonts.poppins(
+                                        size: 10,
+                                        weight: FontWeight.w800,
+                                        color: AppColors.gold,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'To protect privacy, you must only use your own face for generation. Please do not upload photos of others without their explicit consent.',
+                                      style: AppFonts.poppins(
+                                        size: 10,
+                                        color: AppColors.white.withValues(alpha: 0.8),
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                         const SizedBox(height: 28),
 
                         // REGISTER button

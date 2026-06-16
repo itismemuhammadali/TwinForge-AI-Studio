@@ -12,6 +12,8 @@ import '../services/gemini_service.dart';
 import '../providers/user_provider.dart';
 import 'generated_images_screen.dart';
 
+import 'profile_screen.dart';
+
 class GenerateScreenV2 extends StatefulWidget {
   const GenerateScreenV2({super.key});
 
@@ -122,192 +124,17 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-              color: AppColors.gold.withValues(alpha: 0.2),
-              width: 0.8,
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'SELECT IMAGE SOURCE',
-                style: AppFonts.poppins(
-                  size: 10,
-                  weight: FontWeight.w700,
-                  color: AppColors.gold,
-                  letterSpacing: 3,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose how to upload your photo',
-                style: AppFonts.poppins(
-                  size: 13,
-                  color: AppColors.muted,
-                ),
-              ),
-              const SizedBox(height: 28),
-              // Camera option
-              GestureDetector(
-                onTap: () async {
-                  Navigator.pop(context);
-                  final picker = ImagePicker();
-                  final pickedFile = await picker.pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 90,
-                  );
-                  if (pickedFile != null) {
-                    setState(() => _selectedImage = File(pickedFile.path));
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.gold.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppColors.gold.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: AppColors.gold,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Take a Photo',
-                            style: AppFonts.poppins(
-                              size: 15,
-                              weight: FontWeight.w600,
-                              color: AppColors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Open camera and take a selfie',
-                            style: AppFonts.poppins(
-                              size: 11,
-                              color: AppColors.muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: AppColors.gold.withValues(alpha: 0.5),
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Gallery option
-              GestureDetector(
-                onTap: () async {
-                  Navigator.pop(context);
-                  final picker = ImagePicker();
-                  final pickedFile = await picker.pickImage(
-                    source: ImageSource.gallery,
-                    imageQuality: 90,
-                  );
-                  if (pickedFile != null) {
-                    setState(() => _selectedImage = File(pickedFile.path));
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.white.withValues(alpha: 0.08),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppColors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.photo_library,
-                          color: AppColors.white.withValues(alpha: 0.7),
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Choose from Gallery',
-                            style: AppFonts.poppins(
-                              size: 15,
-                              weight: FontWeight.w600,
-                              color: AppColors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Pick an existing photo',
-                            style: AppFonts.poppins(
-                              size: 11,
-                              color: AppColors.muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: AppColors.white.withValues(alpha: 0.3),
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+        return ImageSourceBottomSheet(
+          onSourceSelected: (source) async {
+            final picker = ImagePicker();
+            final pickedFile = await picker.pickImage(
+              source: source,
+              imageQuality: 90,
+            );
+            if (pickedFile != null) {
+              setState(() => _selectedImage = File(pickedFile.path));
+            }
+          },
         );
       },
     );
@@ -416,7 +243,9 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: const AimrAppBar(),
+      appBar: AimrAppBar(
+        actions: [],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),

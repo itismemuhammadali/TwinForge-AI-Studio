@@ -9,6 +9,7 @@ import '../providers/carousel_provider.dart';
 import '../providers/user_provider.dart';
 import '../models/carousel_models.dart';
 import '../services/carousel_export_service.dart';
+import 'carousel_review_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 
@@ -34,6 +35,7 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
   String _resizeHandle = ''; // 'tl', 'tr', 'bl', 'br', 'tm', 'bm', 'lm', 'rm'
   bool _isResizing = false;
   final Map<String, Size> _imageSizes = {};
+  final Set<String> _precachedUrls = {};
 
   void debugLog(String message) {
     developer.log('[CarouselEditorScreen] $message');
@@ -51,8 +53,62 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
             debugLog('🖼️ Image dimensions loaded: ${_imageSizes[url]} for $url');
           });
         }
+      }, onError: (dynamic exception, StackTrace? stackTrace) {
+        debugLog('❌ Error loading dimensions for $url: $exception');
       }),
     );
+  }
+
+  void _precacheAllSlides(List<String> urls) {
+    debugLog('🔄 Precaching ${urls.length} images...');
+    for (final url in urls) {
+      if (!_precachedUrls.contains(url) && url.isNotEmpty) {
+        debugLog('📥 Precaching: $url');
+        precacheImage(NetworkImage(url), context).then((_) {
+          if (mounted) {
+            _precachedUrls.add(url);
+            debugLog('✅ Precached: $url');
+          }
+        }).catchError((e) {
+          debugLog('❌ Precache failed for $url: $e');
+          // Still add to precached to avoid infinite retry
+          _precachedUrls.add(url);
+        });
+      }
+    }
+  }
+
+  /// Calculate optimal text overlay dimensions based on content and styling
+  Map<String, double> _calculateTextDimensions(
+    String text,
+    int fontSize,
+    double scaleFactor,
+  ) {
+    // Estimate text width and height based on font size
+    final charWidth = fontSize * 0.6; // Approximate character width
+    final lineHeight = fontSize * 1.4;
+    
+    // Calculate based on text length
+    int maxCharsPerLine = (600 * scaleFactor / charWidth).toInt().clamp(10, 50);
+    int lines = ((text.length / maxCharsPerLine) + 0.5).toInt().clamp(1, 100);
+    
+    // Add padding
+    final padding = 20 * scaleFactor;
+    final width = (maxCharsPerLine * charWidth + padding).clamp(200.0, 1000.0);
+    final height = (lines * lineHeight + padding).clamp(80.0, 2000.0);
+    
+    debugLog('📐 Text dimensions: width=$width, height=$height (lines=$lines, fontSize=$fontSize)');
+    
+    return {'width': width, 'height': height};
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final urls = context.read<CarouselProvider>().backgroundImageUrls;
+    if (_precachedUrls.length < urls.length) {
+      _precacheAllSlides(urls);
+    }
   }
 
   void _push(BuildContext context, Widget screen) =>
@@ -60,193 +116,12 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
 
   Future<void> _handleDownload() async {
     final carouselProvider = context.read<CarouselProvider>();
-    
-    setState(() => _isLoading = true);
-    
-    try {
-      debugLog('📥 Starting carousel download...');
-      
-      // Request storage permissions first
-      final status = await Permission.storage.request();
-      if (!status.isGranted) {
-        throw Exception('Storage permission denied. Please grant permission to save files.');
-      }
-      
-      final carousel = carouselProvider.carousel;
-      final zipFile = await CarouselExportService.exportCarouselToZip(carousel);
-      
-      final filePath = zipFile.path;
-      final fileName = zipFile.path.split('/').last;
-      debugLog('✅ Download complete: $filePath');
-      
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppColors.inputBg,
-            title: Text(
-              '✅ Download Successful!',
-              style: AppFonts.playfair(
-                size: 22,
-                color: AppColors.gold,
-                weight: FontWeight.w900,
-              ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your carousel has been downloaded successfully!',
-                  style: AppFonts.poppins(
-                    size: 13,
-                    color: AppColors.white,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.gold.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'File Name:',
-                        style: AppFonts.poppins(
-                          size: 11,
-                          color: AppColors.gold,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      SelectableText(
-                        fileName,
-                        style: AppFonts.poppins(
-                          size: 12,
-                          color: AppColors.white,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Full Path:',
-                        style: AppFonts.poppins(
-                          size: 11,
-                          color: AppColors.gold,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      SelectableText(
-                        filePath,
-                        style: AppFonts.poppins(
-                          size: 9,
-                          color: AppColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.gold.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'File saved to app documents folder.',
-                        style: AppFonts.poppins(
-                          size: 11,
-                          color: AppColors.gold,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Contains 5 PNG files:\n• slide1.png\n• slide2.png\n• slide3.png\n• slide4.png\n• slide5.png',
-                        style: AppFonts.poppins(
-                          size: 10,
-                          color: AppColors.muted,
-                          height: 1.6,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'OK',
-                  style: AppFonts.poppins(
-                    color: AppColors.gold,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      debugLog('❌ Download error: $e');
-      
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppColors.inputBg,
-            title: Text(
-              '❌ Download Failed',
-              style: AppFonts.playfair(
-                size: 22,
-                color: Colors.red,
-                weight: FontWeight.w900,
-              ),
-            ),
-            content: Text(
-              'Error: $e',
-              style: AppFonts.poppins(
-                size: 12,
-                color: AppColors.white,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'OK',
-                  style: AppFonts.poppins(
-                    color: AppColors.gold,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CarouselReviewScreen(carousel: carouselProvider.carousel),
+      ),
+    );
   }
 
   void _showAddTextDialog(BuildContext context) {
@@ -300,17 +175,17 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                     ? _imageSizes[imageUrl]!
                     : const Size(1080.0, 1350.0);
                 
-                // Scale initial position and size relative to image dimensions
-                // Default was 1080 wide, so we scale by imageSize.width / 1080
                 final double scaleFactor = imageSize.width / 1080.0;
+                final fontSize = (24 * scaleFactor).toInt();
+                final dimensions = _calculateTextDimensions(textController.text, fontSize, scaleFactor);
                 
                 final textOverlay = TextOverlay(
                   text: textController.text,
                   x: 50 * scaleFactor,
                   y: 200 * scaleFactor,
-                  width: 300 * scaleFactor,
-                  height: 60 * scaleFactor,
-                  fontSize: (24 * scaleFactor).toInt(),
+                  width: dimensions['width']!,
+                  height: dimensions['height']!,
+                  fontSize: fontSize,
                   fontFamily: 'Montserrat',
                   fontColor: '#FFFFFF',
                   alignment: 'center',
@@ -375,7 +250,6 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                       ? _imageSizes[imageUrl]!
                       : const Size(1080.0, 1350.0);
                   
-                  // Scale initial position and size relative to image dimensions
                   final double scaleFactor = imageSize.width / 1080.0;
 
                   final imageOverlay = ImageOverlay(
@@ -417,78 +291,43 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
       backgroundColor: AppColors.inputBg,
       isScrollControlled: true,
       builder: (bottomSheetContext) {
-        // Use Consumer to watch provider changes inside bottom sheet
         return Consumer<CarouselProvider>(
           builder: (consumerContext, provider, _) {
-            // Always get fresh overlay from current provider state
             if (overlayIndex >= provider.currentSlide.overlays.length) {
               return const SizedBox.shrink();
             }
-            
             final currentOverlay = provider.currentSlide.overlays[overlayIndex];
-            
             if (currentOverlay is! TextOverlay) {
               return const SizedBox.shrink();
             }
-            
             final textOverlay = currentOverlay as TextOverlay;
             
             return SingleChildScrollView(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(consumerContext).viewInsets.bottom + 20,
-                left: 20,
-                right: 20,
-                top: 20,
+                left: 20, right: 20, top: 20,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Edit Text',
-                    style: AppFonts.playfair(
-                      size: 24,
-                      color: AppColors.white,
-                      weight: FontWeight.w900,
-                    ),
-                  ),
+                  Text('Edit Text', style: AppFonts.playfair(size: 24, color: AppColors.white, weight: FontWeight.w900)),
                   const SizedBox(height: 20),
-                  // Font family selector
-                  Text(
-                    'Font Family',
-                    style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                  ),
+                  Text('Font Family', style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children: [
-                        'Montserrat', 'Playfair', 'Roboto', 'OpenSans', 'Poppins',
-                        'Lora', 'Pacifico', 'Caveat', 'Raleway', 'Merriweather'
-                      ].map((font) {
+                      children: ['Montserrat', 'Playfair', 'Roboto', 'OpenSans', 'Poppins', 'Lora', 'Pacifico', 'Caveat', 'Raleway', 'Merriweather'].map((font) {
                         final isSelected = textOverlay.fontFamily == font;
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: GestureDetector(
-                            onTap: () {
-                              final updated = textOverlay.copyWith(fontFamily: font);
-                              provider.updateOverlay(overlayIndex, updated);
-                              debugLog('✏️ Font changed to $font');
-                            },
+                            onTap: () => provider.updateOverlay(overlayIndex, textOverlay.copyWith(fontFamily: font)),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.gold : AppColors.surface,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                font,
-                                style: AppFonts.poppins(
-                                  size: 11,
-                                  color: isSelected ? AppColors.black : AppColors.gold,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
+                              decoration: BoxDecoration(color: isSelected ? AppColors.gold : AppColors.surface, borderRadius: BorderRadius.circular(8)),
+                              child: Text(font, style: AppFonts.poppins(size: 11, color: isSelected ? AppColors.black : AppColors.gold, weight: FontWeight.w600)),
                             ),
                           ),
                         );
@@ -496,141 +335,43 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // Font size slider
-                  Text(
-                    'Font Size: ${textOverlay.fontSize}',
-                    style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                  ),
+                  Text('Font Size: ${textOverlay.fontSize}', style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600)),
                   Slider(
-                    value: textOverlay.fontSize.toDouble(),
-                    min: 12,
-                    max: 64,
-                    divisions: 13,
-                    activeColor: AppColors.gold,
-                    inactiveColor: AppColors.gold.withValues(alpha: 0.3),
-                    onChanged: (value) {
-                      final updated = textOverlay.copyWith(fontSize: value.toInt());
-                      provider.updateOverlay(overlayIndex, updated);
-                    },
+                    value: textOverlay.fontSize.toDouble().clamp(12.0, 64.0), min: 12, max: 64, divisions: 52,
+                    activeColor: AppColors.gold, inactiveColor: AppColors.gold.withValues(alpha: 0.3),
+                    onChanged: (v) => provider.updateOverlay(overlayIndex, textOverlay.copyWith(fontSize: v.toInt())),
                   ),
                   const SizedBox(height: 20),
-                  // Text alignment
-                  Text(
-                    'Alignment',
-                    style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                  ),
+                  Text('Alignment', style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildAlignmentButton(provider, overlayIndex, textOverlay, 'left', Icons.format_align_left),
-                      const SizedBox(width: 8),
-                      _buildAlignmentButton(provider, overlayIndex, textOverlay, 'center', Icons.format_align_center),
-                      const SizedBox(width: 8),
-                      _buildAlignmentButton(provider, overlayIndex, textOverlay, 'right', Icons.format_align_right),
-                    ],
-                  ),
+                  Row(children: [
+                    _buildAlignmentButton(provider, overlayIndex, textOverlay, 'left', Icons.format_align_left),
+                    const SizedBox(width: 8),
+                    _buildAlignmentButton(provider, overlayIndex, textOverlay, 'center', Icons.format_align_center),
+                    const SizedBox(width: 8),
+                    _buildAlignmentButton(provider, overlayIndex, textOverlay, 'right', Icons.format_align_right),
+                  ]),
                   const SizedBox(height: 20),
-                  // Bold, Italic, Underline toggles
-                  Text(
-                    'Text Style',
-                    style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                  ),
+                  Text('Text Style', style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildStyleToggle(provider, overlayIndex, textOverlay, 'bold', Icons.format_bold, textOverlay.bold),
-                      const SizedBox(width: 8),
-                      _buildStyleToggle(provider, overlayIndex, textOverlay, 'italic', Icons.format_italic, textOverlay.italic),
-                      const SizedBox(width: 8),
-                      _buildStyleToggle(provider, overlayIndex, textOverlay, 'underline', Icons.format_underlined, textOverlay.underline),
-                    ],
-                  ),
+                  Row(children: [
+                    _buildStyleToggle(provider, overlayIndex, textOverlay, 'bold', Icons.format_bold, textOverlay.bold),
+                    const SizedBox(width: 8),
+                    _buildStyleToggle(provider, overlayIndex, textOverlay, 'italic', Icons.format_italic, textOverlay.italic),
+                    const SizedBox(width: 8),
+                    _buildStyleToggle(provider, overlayIndex, textOverlay, 'underline', Icons.format_underlined, textOverlay.underline),
+                  ]),
                   const SizedBox(height: 20),
-                  // Font color picker
-                  Text(
-                    'Font Color',
-                    style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                  ),
+                  Text('Font Color', style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildColorCircle('#FFFFFF', textOverlay.fontColor == '#FFFFFF', () {
-                        final updated = textOverlay.copyWith(fontColor: '#FFFFFF');
-                        provider.updateOverlay(overlayIndex, updated);
-                      }),
-                      _buildColorCircle('#000000', textOverlay.fontColor == '#000000', () {
-                        final updated = textOverlay.copyWith(fontColor: '#000000');
-                        provider.updateOverlay(overlayIndex, updated);
-                      }),
-                      _buildColorCircle('#FFD700', textOverlay.fontColor == '#FFD700', () {
-                        final updated = textOverlay.copyWith(fontColor: '#FFD700');
-                        provider.updateOverlay(overlayIndex, updated);
-                      }),
-                      _buildColorCircle('#FF6B6B', textOverlay.fontColor == '#FF6B6B', () {
-                        final updated = textOverlay.copyWith(fontColor: '#FF6B6B');
-                        provider.updateOverlay(overlayIndex, updated);
-                      }),
-                    ],
-                  ),
+                  Row(children: [
+                    _buildColorCircle('#FFFFFF', textOverlay.fontColor == '#FFFFFF', () => provider.updateOverlay(overlayIndex, textOverlay.copyWith(fontColor: '#FFFFFF'))),
+                    _buildColorCircle('#000000', textOverlay.fontColor == '#000000', () => provider.updateOverlay(overlayIndex, textOverlay.copyWith(fontColor: '#000000'))),
+                    _buildColorCircle('#FFD700', textOverlay.fontColor == '#FFD700', () => provider.updateOverlay(overlayIndex, textOverlay.copyWith(fontColor: '#FFD700'))),
+                    _buildColorCircle('#FF6B6B', textOverlay.fontColor == '#FF6B6B', () => provider.updateOverlay(overlayIndex, textOverlay.copyWith(fontColor: '#FF6B6B'))),
+                  ]),
                   const SizedBox(height: 20),
-                  // Shadow toggle
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Text Shadow',
-                          style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          final updated = textOverlay.copyWith(shadow: !textOverlay.shadow);
-                          provider.updateOverlay(overlayIndex, updated);
-                          debugLog('✏️ Shadow toggled: ${updated.shadow}');
-                        },
-                        child: Container(
-                          width: 50,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: textOverlay.shadow ? AppColors.gold : AppColors.surface,
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Center(
-                            child: Text(
-                              textOverlay.shadow ? 'ON' : 'OFF',
-                              style: AppFonts.poppins(
-                                size: 10,
-                                color: textOverlay.shadow ? AppColors.black : AppColors.muted,
-                                weight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Opacity slider
-                  Text(
-                    'Opacity: ${(textOverlay.opacity * 100).toInt()}%',
-                    style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w600),
-                  ),
-                  Slider(
-                    value: textOverlay.opacity,
-                    min: 0,
-                    max: 1,
-                    activeColor: AppColors.gold,
-                    inactiveColor: AppColors.gold.withValues(alpha: 0.3),
-                    onChanged: (value) {
-                      final updated = textOverlay.copyWith(opacity: value);
-                      provider.updateOverlay(overlayIndex, updated);
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  GoldButton(
-                    label: 'DONE',
-                    onTap: () => Navigator.pop(bottomSheetContext),
-                  ),
+                  GoldButton(label: 'DONE', onTap: () => Navigator.pop(bottomSheetContext)),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -645,17 +386,10 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
     final isSelected = overlay.alignment == alignment;
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          final updated = overlay.copyWith(alignment: alignment);
-          provider.updateOverlay(overlayIndex, updated);
-          debugLog('✏️ Alignment changed to $alignment');
-        },
+        onTap: () => provider.updateOverlay(overlayIndex, overlay.copyWith(alignment: alignment)),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.gold : AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
+          decoration: BoxDecoration(color: isSelected ? AppColors.gold : AppColors.surface, borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, color: isSelected ? AppColors.black : AppColors.gold, size: 18),
         ),
       ),
@@ -667,22 +401,14 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
       child: GestureDetector(
         onTap: () {
           TextOverlay updated;
-          if (style == 'bold') {
-            updated = overlay.copyWith(bold: !overlay.bold);
-          } else if (style == 'italic') {
-            updated = overlay.copyWith(italic: !overlay.italic);
-          } else {
-            updated = overlay.copyWith(underline: !overlay.underline);
-          }
+          if (style == 'bold') updated = overlay.copyWith(bold: !overlay.bold);
+          else if (style == 'italic') updated = overlay.copyWith(italic: !overlay.italic);
+          else updated = overlay.copyWith(underline: !overlay.underline);
           provider.updateOverlay(overlayIndex, updated);
-          debugLog('✏️ $style toggled');
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.gold : AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
+          decoration: BoxDecoration(color: isActive ? AppColors.gold : AppColors.surface, borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, color: isActive ? AppColors.black : AppColors.gold, size: 18),
         ),
       ),
@@ -695,86 +421,11 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 40,
-          height: 40,
+          width: 40, height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Color(int.parse('0xFF${color.replaceFirst('#', '')}')),
-            border: Border.all(
-              color: isSelected ? AppColors.gold : Colors.transparent,
-              width: 3,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _alignmentButton(BuildContext context, int overlayIndex, TextOverlay overlay, String alignment, IconData icon) {
-    final isSelected = overlay.alignment == alignment;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          final updated = overlay.copyWith(alignment: alignment);
-          context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-          setState(() {}); // Refresh UI
-          debugLog('✏️ Alignment changed to $alignment');
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.gold : AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: isSelected ? AppColors.black : AppColors.gold, size: 18),
-        ),
-      ),
-    );
-  }
-
-  Widget _styleToggleButton(BuildContext context, int overlayIndex, TextOverlay overlay, String style, IconData icon, bool isActive) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          TextOverlay updated;
-          if (style == 'bold') {
-            updated = overlay.copyWith(bold: !overlay.bold);
-          } else if (style == 'italic') {
-            updated = overlay.copyWith(italic: !overlay.italic);
-          } else {
-            updated = overlay.copyWith(underline: !overlay.underline);
-          }
-          context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-          setState(() {}); // Refresh UI
-          debugLog('✏️ $style toggled');
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.gold : AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: isActive ? AppColors.black : AppColors.gold, size: 18),
-        ),
-      ),
-    );
-  }
-
-  Widget _colorCircle(String color, bool isSelected, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(int.parse('0xFF${color.replaceFirst('#', '')}')),
-            border: Border.all(
-              color: isSelected ? AppColors.gold : Colors.transparent,
-              width: 3,
-            ),
+            border: Border.all(color: isSelected ? AppColors.gold : Colors.transparent, width: 3),
           ),
         ),
       ),
@@ -787,8 +438,7 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
     final carouselProvider = context.watch<CarouselProvider>();
     final currentSlide = carouselProvider.currentSlide;
     final currentSlideIndex = carouselProvider.currentSlideIndex;
-    
-    // Determine actual image size for constraints
+
     final String? imageUrl = currentSlide.backgroundImageUrl;
     final Size imageSize = (imageUrl != null && _imageSizes.containsKey(imageUrl))
         ? _imageSizes[imageUrl]!
@@ -825,58 +475,34 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                               setState(() => _selectedOverlayIndex = null);
                             },
                             child: Container(
-                              width: 70,
-                              height: 90,
+                              width: 70, height: 90,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: isActive
-                                      ? AppColors.gold
-                                      : AppColors.gold.withValues(alpha: 0.2),
+                                  color: isActive ? AppColors.gold : AppColors.gold.withValues(alpha: 0.2),
                                   width: isActive ? 2 : 1,
                                 ),
-                                boxShadow: isActive
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColors.gold.withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                        ),
-                                      ]
-                                    : [],
+                                boxShadow: isActive ? [BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 8)] : [],
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: slide.backgroundImageUrl != null
                                     ? Image.network(
                                         slide.backgroundImageUrl!,
+                                        key: ValueKey('thumb_${slide.backgroundImageUrl}'),
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Container(
-                                            color: AppColors.inputBg,
-                                            child: Center(
-                                              child: Text(
-                                                '${index + 1}',
-                                                style: AppFonts.poppins(
-                                                  size: 12,
-                                                  color: AppColors.gold,
-                                                ),
-                                              ),
-                                            ),
-                                          );
+                                        cacheHeight: 360,
+                                        cacheWidth: 280,
+                                        loadingBuilder: (context, child, progress) {
+                                          if (progress == null) return child;
+                                          return Container(color: AppColors.surface, child: const Center(child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2)));
                                         },
-                                      )
-                                    : Container(
-                                        color: AppColors.inputBg,
-                                        child: Center(
-                                          child: Text(
-                                            'Slide ${index + 1}',
-                                            style: AppFonts.poppins(
-                                              size: 10,
-                                              color: AppColors.muted,
-                                            ),
-                                          ),
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: AppColors.inputBg,
+                                          child: const Center(child: Icon(Icons.broken_image, color: AppColors.gold, size: 24)),
                                         ),
-                                      ),
+                                      )
+                                    : Container(color: AppColors.inputBg, child: Center(child: Text('Slide ${index + 1}', style: AppFonts.poppins(size: 10, color: AppColors.muted)))),
                               ),
                             ),
                           ),
@@ -892,11 +518,8 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final String? imageUrl = currentSlide.backgroundImageUrl;
-                        if (imageUrl != null) {
-                          _getImageDimensions(imageUrl);
-                        }
+                        if (imageUrl != null) _getImageDimensions(imageUrl);
                         
-                        // Determine actual image size - default to 1080x1350 (Instagram portrait)
                         final Size imageSize = (imageUrl != null && _imageSizes.containsKey(imageUrl))
                             ? _imageSizes[imageUrl]!
                             : const Size(1080.0, 1350.0);
@@ -905,73 +528,61 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                         final double canvasHeight = imageSize.height;
                         final double aspectRatio = canvasWidth / canvasHeight;
                         
-                        // Calculate display dimensions to fit within constraints
                         double displayWidth = constraints.maxWidth;
                         double displayHeight = displayWidth / aspectRatio;
-                        
                         if (displayHeight > constraints.maxHeight) {
                           displayHeight = constraints.maxHeight;
                           displayWidth = displayHeight * aspectRatio;
                         }
                         
-                        // Scale factor between image pixels and display pixels
                         final double scale = canvasWidth / displayWidth;
 
                         return Center(
                           child: Container(
-                            width: displayWidth,
-                            height: displayHeight,
+                            width: displayWidth, height: displayHeight,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.gold.withValues(alpha: 0.6),
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.5),
-                                  blurRadius: 15,
-                                  spreadRadius: 2,
-                                ),
-                              ],
+                              border: Border.all(color: AppColors.gold.withValues(alpha: 0.6), width: 2),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 15, spreadRadius: 2)],
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(14),
                               child: FittedBox(
                                 fit: BoxFit.contain,
                                 child: SizedBox(
-                                  width: canvasWidth,
-                                  height: canvasHeight,
+                                  width: canvasWidth, height: canvasHeight,
                                   child: Stack(
                                     key: _canvasKey,
                                     clipBehavior: Clip.none,
                                     children: [
-                                      // Background image
                                       if (imageUrl != null)
                                         Image.network(
                                           imageUrl,
-                                          width: canvasWidth,
-                                          height: canvasHeight,
+                                          key: ValueKey('bg_$imageUrl'),
+                                          width: canvasWidth, height: canvasHeight,
                                           fit: BoxFit.cover,
+                                          cacheHeight: canvasHeight.toInt(),
+                                          cacheWidth: canvasWidth.toInt(),
+                                          loadingBuilder: (context, child, progress) {
+                                            if (progress == null) return child;
+                                            return Container(color: AppColors.surface, width: canvasWidth, height: canvasHeight, child: const Center(child: CircularProgressIndicator(color: AppColors.gold)));
+                                          },
                                           errorBuilder: (context, error, stackTrace) => Container(
+                                            width: canvasWidth, height: canvasHeight,
                                             color: AppColors.inputBg,
-                                            child: const Center(child: Icon(Icons.error, color: AppColors.gold, size: 48)),
+                                            child: Center(child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(Icons.error_outline, color: AppColors.gold, size: 48),
+                                                const SizedBox(height: 8),
+                                                Text('Image Load Error', style: AppFonts.poppins(size: 14, color: AppColors.gold)),
+                                              ],
+                                            )),
                                           ),
                                         )
                                       else
-                                        Container(
-                                          color: AppColors.inputBg,
-                                          width: canvasWidth,
-                                          height: canvasHeight,
-                                          child: Center(
-                                            child: Text(
-                                              'No Background Image',
-                                              style: AppFonts.poppins(size: 32, color: AppColors.muted),
-                                            ),
-                                          ),
-                                        ),
+                                        Container(color: AppColors.inputBg, width: canvasWidth, height: canvasHeight, child: Center(child: Text('No Background Image', style: AppFonts.poppins(size: 32, color: AppColors.muted)))),
                                         
-                                      // Overlays with drag/resize handles
                                       ...List.generate(
                                         currentSlide.overlays.length,
                                         (overlayIndex) {
@@ -979,10 +590,7 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                           final isSelected = _selectedOverlayIndex == overlayIndex;
 
                                           return Positioned(
-                                            left: overlay.x,
-                                            top: overlay.y,
-                                            width: overlay.width,
-                                            height: overlay.height,
+                                            left: overlay.x, top: overlay.y, width: overlay.width, height: overlay.height,
                                             child: GestureDetector(
                                               onPanStart: (details) {
                                                 if (isSelected && _resizeHandle.isEmpty) {
@@ -994,19 +602,13 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                               },
                                               onPanUpdate: (details) {
                                                 if (isSelected && !_isResizing) {
-                                                  // Apply scale factor to global movement
                                                   final deltaX = (details.globalPosition.dx - _dragStartX) * scale;
                                                   final deltaY = (details.globalPosition.dy - _dragStartY) * scale;
                                                   final newX = (_lastDragX + deltaX).clamp(0.0, canvasWidth);
                                                   final newY = (_lastDragY + deltaY).clamp(0.0, canvasHeight);
                                                   
-                                                  if (overlay is TextOverlay) {
-                                                    final updated = overlay.copyWith(x: newX, y: newY);
-                                                    context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-                                                  } else if (overlay is ImageOverlay) {
-                                                    final updated = overlay.copyWith(x: newX, y: newY);
-                                                    context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-                                                  }
+                                                  if (overlay is TextOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY));
+                                                  else if (overlay is ImageOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY));
                                                 }
                                               },
                                               onTap: () {
@@ -1014,39 +616,27 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                                 if (overlay is TextOverlay) {
                                                   final ctx = context;
                                                   Future.delayed(const Duration(milliseconds: 100), () {
-                                                    if (mounted) {
-                                                      _showTextEditingPanel(ctx, overlayIndex);
-                                                    }
+                                                    if (mounted) _showTextEditingPanel(ctx, overlayIndex);
                                                   });
                                                 }
                                               },
                                               child: Stack(
                                                 clipBehavior: Clip.none,
                                                 children: [
-                                                  // Content
                                                   Container(
-                                                    decoration: BoxDecoration(
-                                                      border: isSelected ? Border.all(color: AppColors.gold, width: 2) : null,
-                                                    ),
+                                                    decoration: BoxDecoration(border: isSelected ? Border.all(color: AppColors.gold, width: 2) : null),
                                                     child: overlay is TextOverlay
                                                         ? Container(
-                                                            color: overlay.backgroundColor != 'transparent'
-                                                                ? Color(int.parse('0xFF${overlay.backgroundColor.replaceFirst('#', '')}'))
-                                                                : Colors.transparent,
+                                                            color: overlay.backgroundColor != 'transparent' ? Color(int.parse('0xFF${overlay.backgroundColor.replaceFirst('#', '')}')) : Colors.transparent,
                                                             padding: const EdgeInsets.all(8),
-                                                            child: SingleChildScrollView(
+                                                            child: Center(
                                                               child: Text(
                                                                 overlay.text,
-                                                                textAlign: overlay.alignment == 'left'
-                                                                    ? TextAlign.left
-                                                                    : overlay.alignment == 'right'
-                                                                        ? TextAlign.right
-                                                                        : TextAlign.center,
+                                                                textAlign: overlay.alignment == 'left' ? TextAlign.left : overlay.alignment == 'right' ? TextAlign.right : TextAlign.center,
                                                                 maxLines: null,
                                                                 overflow: TextOverflow.visible,
                                                                 style: TextStyle(
-                                                                  fontSize: overlay.fontSize.toDouble(),
-                                                                  fontFamily: overlay.fontFamily,
+                                                                  fontSize: overlay.fontSize.toDouble(), fontFamily: overlay.fontFamily,
                                                                   color: Color(int.parse('0xFF${overlay.fontColor.replaceFirst('#', '')}')),
                                                                   fontWeight: overlay.bold ? FontWeight.bold : FontWeight.normal,
                                                                   fontStyle: overlay.italic ? FontStyle.italic : FontStyle.normal,
@@ -1058,123 +648,55 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                                           )
                                                         : Image.file((overlay as ImageOverlay).imageFile, fit: BoxFit.cover),
                                                   ),
-                                                  // Resize handles (only when selected)
                                                   if (isSelected) ...[
-                                                    // Top-left
                                                     Positioned(
-                                                      left: -12,
-                                                      top: -12,
+                                                      left: -12, top: -12,
                                                       child: GestureDetector(
                                                         onPanStart: (details) {
-                                                          _isResizing = true;
-                                                          _resizeHandle = 'tl';
-                                                          _dragStartX = details.globalPosition.dx;
-                                                          _dragStartY = details.globalPosition.dy;
-                                                          _resizeStartX = overlay.x;
-                                                          _resizeStartY = overlay.y;
-                                                          _resizeStartWidth = overlay.width;
-                                                          _resizeStartHeight = overlay.height;
+                                                          _isResizing = true; _resizeHandle = 'tl'; _dragStartX = details.globalPosition.dx; _dragStartY = details.globalPosition.dy;
+                                                          _resizeStartX = overlay.x; _resizeStartY = overlay.y; _resizeStartWidth = overlay.width; _resizeStartHeight = overlay.height;
                                                         },
                                                         onPanUpdate: (details) {
                                                           if (_resizeHandle == 'tl') {
                                                             final deltaX = (details.globalPosition.dx - _dragStartX) * scale;
                                                             final deltaY = (details.globalPosition.dy - _dragStartY) * scale;
-                                                            
-                                                            final newX = _resizeStartX + deltaX;
-                                                            final newY = _resizeStartY + deltaY;
+                                                            final newX = _resizeStartX + deltaX; final newY = _resizeStartY + deltaY;
                                                             final newW = (_resizeStartWidth - deltaX).clamp(50.0, canvasWidth);
                                                             final newH = (_resizeStartHeight - deltaY).clamp(50.0, canvasHeight);
-                                                            
-                                                            if (overlay is TextOverlay) {
-                                                              final updated = overlay.copyWith(x: newX, y: newY, width: newW, height: newH);
-                                                              context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-                                                            } else {
-                                                              final updated = (overlay as ImageOverlay).copyWith(x: newX, y: newY, width: newW, height: newH);
-                                                              context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-                                                            }
+                                                            if (overlay is TextOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY, width: newW, height: newH));
+                                                            else carouselProvider.updateOverlay(overlayIndex, (overlay as ImageOverlay).copyWith(x: newX, y: newY, width: newW, height: newH));
                                                           }
                                                         },
-                                                        onPanEnd: (_) {
-                                                          _isResizing = false;
-                                                          _resizeHandle = '';
-                                                        },
-                                                        child: Container(
-                                                          width: 24,
-                                                          height: 24,
-                                                          decoration: BoxDecoration(
-                                                            color: AppColors.gold,
-                                                            shape: BoxShape.circle,
-                                                            border: Border.all(color: Colors.white, width: 2),
-                                                          ),
-                                                          child: const Icon(Icons.open_in_full, size: 12, color: Colors.black),
-                                                        ),
+                                                        onPanEnd: (_) { _isResizing = false; _resizeHandle = ''; },
+                                                        child: Container(width: 24, height: 24, decoration: BoxDecoration(color: AppColors.gold, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.open_in_full, size: 12, color: Colors.black)),
                                                       ),
                                                     ),
-                                                    // Bottom-right
                                                     Positioned(
-                                                      right: -12,
-                                                      bottom: -12,
+                                                      right: -12, bottom: -12,
                                                       child: GestureDetector(
                                                         onPanStart: (details) {
-                                                          _isResizing = true;
-                                                          _resizeHandle = 'br';
-                                                          _dragStartX = details.globalPosition.dx;
-                                                          _dragStartY = details.globalPosition.dy;
-                                                          _resizeStartWidth = overlay.width;
-                                                          _resizeStartHeight = overlay.height;
+                                                          _isResizing = true; _resizeHandle = 'br'; _dragStartX = details.globalPosition.dx; _dragStartY = details.globalPosition.dy;
+                                                          _resizeStartWidth = overlay.width; _resizeStartHeight = overlay.height;
                                                         },
                                                         onPanUpdate: (details) {
                                                           if (_resizeHandle == 'br') {
                                                             final deltaX = (details.globalPosition.dx - _dragStartX) * scale;
                                                             final deltaY = (details.globalPosition.dy - _dragStartY) * scale;
-                                                            
                                                             final newW = (_resizeStartWidth + deltaX).clamp(50.0, canvasWidth);
                                                             final newH = (_resizeStartHeight + deltaY).clamp(50.0, canvasHeight);
-                                                            
-                                                            if (overlay is TextOverlay) {
-                                                              final updated = overlay.copyWith(width: newW, height: newH);
-                                                              context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-                                                            } else {
-                                                              final updated = (overlay as ImageOverlay).copyWith(width: newW, height: newH);
-                                                              context.read<CarouselProvider>().updateOverlay(overlayIndex, updated);
-                                                            }
+                                                            if (overlay is TextOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(width: newW, height: newH));
+                                                            else carouselProvider.updateOverlay(overlayIndex, (overlay as ImageOverlay).copyWith(width: newW, height: newH));
                                                           }
                                                         },
-                                                        onPanEnd: (_) {
-                                                          _isResizing = false;
-                                                          _resizeHandle = '';
-                                                        },
-                                                        child: Container(
-                                                          width: 24,
-                                                          height: 24,
-                                                          decoration: BoxDecoration(
-                                                            color: AppColors.gold,
-                                                            shape: BoxShape.circle,
-                                                            border: Border.all(color: Colors.white, width: 2),
-                                                          ),
-                                                          child: const Icon(Icons.open_in_full, size: 12, color: Colors.black),
-                                                        ),
+                                                        onPanEnd: (_) { _isResizing = false; _resizeHandle = ''; },
+                                                        child: Container(width: 24, height: 24, decoration: BoxDecoration(color: AppColors.gold, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.open_in_full, size: 12, color: Colors.black)),
                                                       ),
                                                     ),
-                                                    // Delete button
                                                     Positioned(
-                                                      right: -12,
-                                                      top: -12,
+                                                      right: -12, top: -12,
                                                       child: GestureDetector(
-                                                        onTap: () {
-                                                          context.read<CarouselProvider>().removeOverlay(overlayIndex);
-                                                          setState(() => _selectedOverlayIndex = null);
-                                                          debugLog('🗑️ Overlay deleted');
-                                                        },
-                                                        child: Container(
-                                                          width: 24,
-                                                          height: 24,
-                                                          decoration: const BoxDecoration(
-                                                            color: Colors.red,
-                                                            shape: BoxShape.circle,
-                                                          ),
-                                                          child: const Icon(Icons.close, color: Colors.white, size: 14),
-                                                        ),
+                                                        onTap: () { carouselProvider.removeOverlay(overlayIndex); setState(() => _selectedOverlayIndex = null); },
+                                                        child: Container(width: 24, height: 24, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 14)),
                                                       ),
                                                     ),
                                                   ],
@@ -1195,312 +717,39 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                     ),
                   ),
                 ),
-
-                // Bottom toolbar
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface.withValues(alpha: 0.3),
-                    border: Border(
-                      top: BorderSide(
-                        color: AppColors.gold.withValues(alpha: 0.1),
+                  decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: 0.3), border: Border(top: BorderSide(color: AppColors.gold.withValues(alpha: 0.1)))),
+                  child: Column(children: [
+                    Row(children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(color: AppColors.inputBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.gold.withValues(alpha: 0.2))),
+                          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                            IconButton(icon: Icon(Icons.image, color: AppColors.gold, size: 20), onPressed: carouselProvider.uploadedImages.isEmpty ? null : () => _showAddPhotoDialog(context)),
+                            IconButton(icon: Icon(Icons.text_fields, color: AppColors.gold, size: 20), onPressed: () => _showAddTextDialog(context)),
+                            IconButton(icon: Icon(Icons.undo, color: carouselProvider.canUndo ? AppColors.gold : AppColors.gold.withValues(alpha: 0.3), size: 20), onPressed: carouselProvider.canUndo ? () { carouselProvider.undo(); setState(() => _selectedOverlayIndex = null); } : null),
+                            IconButton(icon: Icon(Icons.redo, color: carouselProvider.canRedo ? AppColors.gold : AppColors.gold.withValues(alpha: 0.3), size: 20), onPressed: carouselProvider.canRedo ? () { carouselProvider.redo(); setState(() => _selectedOverlayIndex = null); } : null),
+                          ]),
+                        ),
                       ),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Overlay resize controls (if one is selected)
-                      if (_selectedOverlayIndex != null) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            children: [
-                              // Decrease size button
-                              GestureDetector(
-                                onTap: () {
-                                  final overlay = carouselProvider.currentSlide.overlays[_selectedOverlayIndex!];
-                                  final newWidth = (overlay.width - 20).clamp(50.0, imageSize.width);
-                                  double newHeight = (overlay.height - 20).clamp(50.0, imageSize.height);
-                                  
-                                  // Auto-adjust height for text
-                                  if (overlay is TextOverlay) {
-                                    final textOverlay = overlay as TextOverlay;
-                                    final charCount = textOverlay.text.length;
-                                    final avgCharsPerLine = newWidth / (textOverlay.fontSize / 2);
-                                    final estimatedLines = (charCount / avgCharsPerLine).ceil();
-                                    newHeight = (estimatedLines * textOverlay.fontSize * 1.5).clamp(50.0, imageSize.height);
-                                    
-                                    final updated = overlay.copyWith(width: newWidth, height: newHeight);
-                                    carouselProvider.updateOverlay(_selectedOverlayIndex!, updated);
-                                  } else {
-                                    // For images, maintain aspect ratio
-                                    final imageOverlay = overlay as ImageOverlay;
-                                    final aspectRatio = overlay.width / overlay.height;
-                                    final updated = imageOverlay.copyWith(width: newWidth, height: newWidth / aspectRatio);
-                                    carouselProvider.updateOverlay(_selectedOverlayIndex!, updated);
-                                  }
-                                  debugLog('📉 Size reduced');
-                                },
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.gold,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.remove, color: AppColors.black, size: 20),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Size input field
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    final overlay = carouselProvider.currentSlide.overlays[_selectedOverlayIndex!];
-                                    final sizeController = TextEditingController(
-                                      text: overlay.width.toInt().toString(),
-                                    );
-                                    
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        backgroundColor: AppColors.inputBg,
-                                        title: Text(
-                                          'Set Width',
-                                          style: AppFonts.playfair(
-                                            size: 20,
-                                            color: AppColors.white,
-                                          ),
-                                        ),
-                                        content: TextField(
-                                          controller: sizeController,
-                                          keyboardType: TextInputType.number,
-                                          style: AppFonts.poppins(color: AppColors.white),
-                                          decoration: InputDecoration(
-                                            hintText: 'Enter width',
-                                            hintStyle: AppFonts.poppins(color: AppColors.muted),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.3)),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderSide: BorderSide(color: AppColors.gold),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            filled: true,
-                                            fillColor: AppColors.surface,
-                                          ),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: Text('Cancel', style: AppFonts.poppins(color: AppColors.gold)),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              final newWidth = double.tryParse(sizeController.text) ?? overlay.width;
-                                              final clampedWidth = newWidth.clamp(50.0, imageSize.width);
-                                              
-                                              // Auto-adjust height based on text wrapping or aspect ratio
-                                              double newHeight = overlay.height;
-                                              if (overlay is TextOverlay) {
-                                                // Estimate new height based on character count and width
-                                                final textOverlay = overlay as TextOverlay;
-                                                final charCount = textOverlay.text.length;
-                                                final avgCharsPerLine = clampedWidth / (textOverlay.fontSize / 2);
-                                                final estimatedLines = (charCount / avgCharsPerLine).ceil();
-                                                newHeight = (estimatedLines * textOverlay.fontSize * 1.5).clamp(50.0, imageSize.height);
-                                                
-                                                final updated = overlay.copyWith(width: clampedWidth, height: newHeight);
-                                                carouselProvider.updateOverlay(_selectedOverlayIndex!, updated);
-                                              } else {
-                                                // For images, maintain aspect ratio
-                                                final imageOverlay = overlay as ImageOverlay;
-                                                final aspectRatio = overlay.width / overlay.height;
-                                                newHeight = clampedWidth / aspectRatio;
-                                                
-                                                final updated = imageOverlay.copyWith(width: clampedWidth, height: newHeight);
-                                                carouselProvider.updateOverlay(_selectedOverlayIndex!, updated);
-                                              }
-                                              Navigator.pop(context);
-                                              debugLog('✏️ Size set to width: $clampedWidth, height: $newHeight');
-                                            },
-                                            child: Text('Set', style: AppFonts.poppins(color: AppColors.gold, weight: FontWeight.w700)),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.inputBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: AppColors.gold.withValues(alpha: 0.3),
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        'W: ${carouselProvider.currentSlide.overlays[_selectedOverlayIndex!].width.toInt()}',
-                                        style: AppFonts.poppins(
-                                          size: 12,
-                                          color: AppColors.gold,
-                                          weight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Increase size button
-                              GestureDetector(
-                                onTap: () {
-                                  final overlay = carouselProvider.currentSlide.overlays[_selectedOverlayIndex!];
-                                  final newWidth = (overlay.width + 20).clamp(50.0, imageSize.width);
-                                  double newHeight = (overlay.height + 20).clamp(50.0, imageSize.height);
-                                  
-                                  // Auto-adjust height for text
-                                  if (overlay is TextOverlay) {
-                                    final textOverlay = overlay as TextOverlay;
-                                    final charCount = textOverlay.text.length;
-                                    final avgCharsPerLine = newWidth / (textOverlay.fontSize / 2);
-                                    final estimatedLines = (charCount / avgCharsPerLine).ceil();
-                                    newHeight = (estimatedLines * textOverlay.fontSize * 1.5).clamp(50.0, imageSize.height);
-                                    
-                                    final updated = overlay.copyWith(width: newWidth, height: newHeight);
-                                    carouselProvider.updateOverlay(_selectedOverlayIndex!, updated);
-                                  } else {
-                                    // For images, maintain aspect ratio
-                                    final imageOverlay = overlay as ImageOverlay;
-                                    final aspectRatio = overlay.width / overlay.height;
-                                    final updated = imageOverlay.copyWith(width: newWidth, height: newWidth / aspectRatio);
-                                    carouselProvider.updateOverlay(_selectedOverlayIndex!, updated);
-                                  }
-                                  debugLog('📈 Size increased');
-                                },
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.gold,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.add, color: AppColors.black, size: 20),
-                                ),
-                              ),
-                            ],
+                    ]),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            height: 56, decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), color: AppColors.surface, border: Border.all(color: AppColors.gold.withValues(alpha: 0.3))),
+                            child: Center(child: Text('BACK', style: AppFonts.poppins(size: 12, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 1.5))),
                           ),
                         ),
-                      ],
-                      // Main toolbar
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: AppColors.inputBg,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.gold.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(Icons.image, color: AppColors.gold, size: 20),
-                                    onPressed: carouselProvider.uploadedImages.isEmpty ? null : () => _showAddPhotoDialog(context),
-                                    tooltip: 'Add Photo',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.text_fields, color: AppColors.gold, size: 20),
-                                    onPressed: () => _showAddTextDialog(context),
-                                    tooltip: 'Add Text',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.undo,
-                                      color: carouselProvider.canUndo ? AppColors.gold : AppColors.gold.withValues(alpha: 0.3),
-                                      size: 20,
-                                    ),
-                                    onPressed: carouselProvider.canUndo ? () {
-                                      carouselProvider.undo();
-                                      setState(() => _selectedOverlayIndex = null);
-                                      debugLog('↶ Undo executed');
-                                    } : null,
-                                    tooltip: 'Undo',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.redo,
-                                      color: carouselProvider.canRedo ? AppColors.gold : AppColors.gold.withValues(alpha: 0.3),
-                                      size: 20,
-                                    ),
-                                    onPressed: carouselProvider.canRedo ? () {
-                                      carouselProvider.redo();
-                                      setState(() => _selectedOverlayIndex = null);
-                                      debugLog('↷ Redo executed');
-                                    } : null,
-                                    tooltip: 'Redo',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
-                      const SizedBox(height: 12),
-                      // Bottom buttons
-                      if (_isLoading)
-                        // During download - full width download button
-                        GoldButton(
-                          label: 'DOWNLOADING...',
-                          onTap: null,
-                        )
-                      else
-                        // Normal state - back and download buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: AppColors.surface,
-                                    border: Border.all(
-                                      color: AppColors.gold.withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'BACK',
-                                      style: AppFonts.poppins(
-                                        size: 12,
-                                        weight: FontWeight.w700,
-                                        color: AppColors.gold,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: GoldButton(
-                                label: 'DOWNLOAD',
-                                onTap: _handleDownload,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
+                      const SizedBox(width: 12),
+                      Expanded(child: GoldButton(label: 'DONE', onTap: _handleDownload)),
+                    ]),
+                  ]),
                 ),
               ],
             ),

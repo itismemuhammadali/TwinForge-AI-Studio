@@ -260,6 +260,172 @@ class FalAiService {
     }
   }
 
+  /// Generate cinematic B-Roll using Video Face Swap (Asynchronous)
+  Future<String> generateBRoll({
+    required String faceImageUrl,
+    required String templateVideoUrl,
+  }) async {
+    try {
+      debugLog('👤 Starting High-Quality Video Face Swap (PixVerse)...');
+      
+      if (apiKey.isEmpty) throw Exception('FAL AI API key is empty');
+
+      // 1. Submit the task to the PixVerse swap queue
+      final modelId = 'fal-ai/pixverse/swap';
+      final submitUrl = Uri.parse('https://queue.fal.run/$modelId');
+      
+      final requestBody = {
+        'video_url': templateVideoUrl,
+        'image_url': faceImageUrl,
+      };
+
+      debugLog('📤 Submitting task to $modelId...');
+      final submitResponse = await http.post(
+        submitUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Key $apiKey',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      debugLog('📥 Submit Response Code: ${submitResponse.statusCode}');
+      debugLog('📥 Submit Response Body: ${submitResponse.body}');
+
+      if (submitResponse.statusCode != 200 && submitResponse.statusCode != 201) {
+        throw Exception('Failed to submit task: ${submitResponse.body}');
+      }
+
+      final submitData = jsonDecode(submitResponse.body);
+      final requestId = submitData['request_id'];
+      final statusUrlFromApi = submitData['status_url'];
+      final responseUrlFromApi = submitData['response_url']; // Use this for final fetch
+      
+      debugLog('🆔 Task submitted! Request ID: $requestId');
+      debugLog('📋 Status URL: $statusUrlFromApi');
+      debugLog('📋 Response URL: $responseUrlFromApi');
+
+      // 2. Poll for status using the URL provided by the API, or construct it
+      final statusUrl = statusUrlFromApi != null 
+          ? Uri.parse(statusUrlFromApi)
+          : Uri.parse('https://queue.fal.run/$modelId/requests/$requestId/status');
+      
+      debugLog('⏳ Polling via: $statusUrl');
+      
+      int attempts = 0;
+      const maxAttempts = 120; // 10 minutes max (5s * 120)
+      String finalStatus = '';
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        debugLog('⏳ Polling status (Attempt $attempts/$maxAttempts)...');
+        
+        try {
+          final statusResponse = await http.get(
+            statusUrl,
+            headers: {'Authorization': 'Key $apiKey'},
+          ).timeout(const Duration(seconds: 10));
+
+          debugLog('📊 Status Response Code: ${statusResponse.statusCode}');
+
+          if (statusResponse.statusCode == 200 || statusResponse.statusCode == 202) {
+            final statusData = jsonDecode(statusResponse.body);
+            final status = statusData['status'];
+            finalStatus = status;
+            debugLog('📊 Current Status: $status');
+
+            if (status == 'COMPLETED') {
+              debugLog('✅ Task COMPLETED! Fetching final result...');
+              break;
+            } else if (status == 'FAILED') {
+              throw Exception('Task failed on FAL AI: ${statusData['error'] ?? 'Unknown error'}');
+            } else {
+              // IN_PROGRESS or IN_QUEUE - just continue polling
+              debugLog('⏳ Task still in progress ($status)...');
+            }
+          } else if (statusResponse.statusCode == 404) {
+            debugLog('⚠️ Result not found yet (404). Request may still be processing...');
+            // Don't throw, just retry
+          } else {
+            debugLog('⚠️ Unexpected status response: ${statusResponse.statusCode}');
+            // Allow transient errors during polling
+          }
+        } catch (e) {
+          debugLog('⚠️ Polling error (attempt $attempts): $e');
+          // Continue polling on transient errors
+        }
+
+        await Future.delayed(const Duration(seconds: 5));
+      }
+
+      debugLog('📊 Final status after polling: $finalStatus');
+
+      // 3. Fetch the final result - Use the response_url which is the correct endpoint
+      final responseUrl = responseUrlFromApi;
+      final finalResultUrl = responseUrl != null 
+          ? Uri.parse(responseUrl)
+          : Uri.parse('https://queue.fal.run/$modelId/requests/$requestId');
+      
+      debugLog('📥 Fetching final result from $finalResultUrl...');
+      
+      final resultResponse = await http.get(
+        finalResultUrl,
+        headers: {'Authorization': 'Key $apiKey'},
+      );
+
+      debugLog('📥 Result Response Code: ${resultResponse.statusCode}');
+      final resultBodyPreview = resultResponse.body.length > 300 
+          ? resultResponse.body.substring(0, 300) 
+          : resultResponse.body;
+      debugLog('📥 Result Response: $resultBodyPreview');
+
+      if (resultResponse.statusCode == 200) {
+        final resultData = jsonDecode(resultResponse.body);
+        final response = resultData['response'] ?? resultData;
+        
+        debugLog('📋 Response keys: ${response.keys}');
+        
+        if (response['video'] != null) {
+          final video = response['video'];
+          if (video is Map && video['url'] != null) {
+            final videoUrl = video['url'];
+            debugLog('✅ Face swap completed: $videoUrl');
+            return videoUrl;
+          } else if (video is String) {
+            debugLog('✅ Face swap completed: $video');
+            return video;
+          }
+        }
+        
+        if (response['video_url'] != null) {
+          final videoUrl = response['video_url'];
+          debugLog('✅ Face swap completed: $videoUrl');
+          return videoUrl;
+        }
+        
+        if (response['output'] != null) {
+          final output = response['output'];
+          if (output is Map && output['video'] != null) {
+            debugLog('✅ Face swap completed: ${output['video']}');
+            return output['video'].toString();
+          }
+        }
+        
+        debugLog('❌ Response structure: ${jsonEncode(response).substring(0, 200)}');
+        throw Exception('No video URL found in response. Keys: ${response.keys}');
+      } else if (resultResponse.statusCode == 202) {
+        // Still processing
+        debugLog('⏳ Task still processing. Max attempts reached.');
+        throw Exception('Task still processing after max polling attempts');
+      } else {
+        throw Exception('Failed to fetch final result: ${resultResponse.statusCode} - ${resultResponse.body.substring(0, 200)}');
+      }
+    } catch (e) {
+      debugLog('❌ Face Swap Error: $e');
+      rethrow;
+    }
+  }
+
   /// Check API key validity
   static Future<bool> verifyApiKey() async {
     try {

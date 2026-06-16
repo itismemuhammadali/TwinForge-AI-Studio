@@ -1,12 +1,188 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
+
+// ── Reusable Image Source Selection Bottom Sheet ─────────────────────────────
+class ImageSourceBottomSheet extends StatelessWidget {
+  final Function(ImageSource) onSourceSelected;
+  final String title;
+  final String subtitle;
+
+  const ImageSourceBottomSheet({
+    super.key,
+    required this.onSourceSelected,
+    this.title = 'SELECT IMAGE SOURCE',
+    this.subtitle = 'Choose how to upload your photo',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(
+          color: AppColors.gold.withValues(alpha: 0.2),
+          width: 0.8,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: AppFonts.poppins(
+              size: 10,
+              weight: FontWeight.w700,
+              color: AppColors.gold,
+              letterSpacing: 3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: AppFonts.poppins(
+              size: 13,
+              color: AppColors.muted,
+            ),
+          ),
+          const SizedBox(height: 28),
+          
+          // Camera option
+          _SourceOptionCard(
+            title: 'Take a Photo',
+            subtitle: 'Open camera and take a selfie',
+            icon: Icons.camera_alt,
+            isPrimary: true,
+            onTap: () {
+              Navigator.pop(context);
+              onSourceSelected(ImageSource.camera);
+            },
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Gallery option
+          _SourceOptionCard(
+            title: 'Choose from Gallery',
+            subtitle: 'Pick an existing photo',
+            icon: Icons.photo_library,
+            isPrimary: false,
+            onTap: () {
+              Navigator.pop(context);
+              onSourceSelected(ImageSource.gallery);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceOptionCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const _SourceOptionCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isPrimary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: isPrimary 
+              ? AppColors.gold.withValues(alpha: 0.08)
+              : AppColors.surface.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isPrimary 
+                ? AppColors.gold.withValues(alpha: 0.3)
+                : AppColors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isPrimary 
+                    ? AppColors.gold.withValues(alpha: 0.15)
+                    : AppColors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: isPrimary ? AppColors.gold : AppColors.white.withValues(alpha: 0.7),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppFonts.poppins(
+                    size: 15,
+                    weight: FontWeight.w600,
+                    color: AppColors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: AppFonts.poppins(
+                    size: 11,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: isPrimary 
+                  ? AppColors.gold.withValues(alpha: 0.5)
+                  : AppColors.white.withValues(alpha: 0.3),
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // ── Reusable brand header bar ─────────────────────────────────────────────
 class AimrAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback? onProfileTap;
   final List<Widget>? actions;
 
-  const AimrAppBar({super.key, this.onProfileTap, this.actions});
+  const AimrAppBar({super.key, this.actions});
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
@@ -37,26 +213,7 @@ class AimrAppBar extends StatelessWidget implements PreferredSizeWidget {
         preferredSize: const Size.fromHeight(0.5),
         child: Container(height: 0.5, color: AppColors.white.withValues(alpha: 0.05)),
       ),
-      actions: actions ??
-          [
-            if (onProfileTap != null)
-              GestureDetector(
-                onTap: onProfileTap,
-                child: Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: AppColors.gold.withValues(alpha: 0.4), width: 0.8),
-                    color: AppColors.gold.withValues(alpha: 0.1),
-                  ),
-                  child: const Icon(Icons.person_outline,
-                      color: AppColors.gold, size: 18),
-                ),
-              ),
-          ],
+      actions: actions ?? [],
     );
   }
 }

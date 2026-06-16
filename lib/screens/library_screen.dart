@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
+import 'package:video_player/video_player.dart';
+import '../services/carousel_export_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/premium_header.dart';
@@ -197,12 +199,16 @@ class _AllTab extends StatelessWidget {
           itemBuilder: (context, index) {
             final data = allDocs[index].data() as Map<String, dynamic>;
             
-            // Map originalImageUrl to imageUrl if needed
-            if (data['originalImageUrl'] != null && data['imageUrl'] == null) {
-              data['imageUrl'] = data['originalImageUrl'];
-            }
-            
             final type = data['type'] as String? ?? 'image';
+
+            // Map originalImageUrl/videoUrl to imageUrl for preview if needed
+            if (data['imageUrl'] == null) {
+              if (type == 'video') {
+                data['imageUrl'] = data['editedImageUrl'] ?? data['videoUrl'];
+              } else if (data['originalImageUrl'] != null) {
+                data['imageUrl'] = data['originalImageUrl'];
+              }
+            }
             
             if (type == 'carousel') {
               return _CarouselCard(data: data, docId: allDocs[index].id);
@@ -378,43 +384,178 @@ class _CarouselCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final slides = data['slides'] as List? ?? [];
-    final firstSlideUrl = slides.isNotEmpty ? slides[0]['backgroundImageUrl'] : '';
+    final firstSlideUrl = data['imageUrl'] as String? ?? (slides.isNotEmpty ? slides[0]['backgroundImageUrl'] : '');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.15), width: 0.8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (firstSlideUrl != null && firstSlideUrl.isNotEmpty)
-              Image.network(firstSlideUrl, fit: BoxFit.cover)
-            else
-              const Center(child: Icon(Icons.view_carousel, color: AppColors.gold, size: 40)),
-            
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => _CarouselDetailDialog(data: data),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.15), width: 0.8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (firstSlideUrl != null && firstSlideUrl.isNotEmpty)
+                Image.network(firstSlideUrl, fit: BoxFit.cover)
+              else
+                const Center(child: Icon(Icons.view_carousel, color: AppColors.gold, size: 40)),
+              
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Carousel', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+                      Text('${slides.length} Slides', style: AppFonts.poppins(size: 10, color: Colors.white)),
+                    ],
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Carousel', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
-                    Text('${slides.length} Slides', style: AppFonts.poppins(size: 10, color: Colors.white)),
-                  ],
-                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CarouselDetailDialog extends StatefulWidget {
+  final Map<String, dynamic> data;
+  const _CarouselDetailDialog({required this.data});
+
+  @override
+  State<_CarouselDetailDialog> createState() => _CarouselDetailDialogState();
+}
+
+class _CarouselDetailDialogState extends State<_CarouselDetailDialog> {
+  int _currentSlide = 0;
+  bool _isDownloading = false;
+
+  Future<void> _downloadZip() async {
+    final zipUrl = widget.data['carouselZipUrl'] as String?;
+    if (zipUrl == null) return;
+
+    setState(() => _isDownloading = true);
+    try {
+      final response = await http.get(Uri.parse(zipUrl));
+      if (response.statusCode == 200) {
+        final downloadsDir = await CarouselExportService.getDownloadsDirectory();
+        if (downloadsDir != null) {
+          final fileName = 'carousel_${DateTime.now().millisecondsSinceEpoch}.zip';
+          final localFile = File('${downloadsDir.path}/$fileName');
+          await localFile.writeAsBytes(response.bodyBytes);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('✅ ZIP downloaded to Downloads folder!'), backgroundColor: Colors.green),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Download failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slides = widget.data['slides'] as List? ?? [];
+    
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: AspectRatio(
+                      aspectRatio: 0.8,
+                      child: Stack(
+                        children: [
+                          PageView.builder(
+                            itemCount: slides.length,
+                            onPageChanged: (i) => setState(() => _currentSlide = i),
+                            itemBuilder: (context, index) {
+                              return Image.network(
+                                slides[index]['backgroundImageUrl'] ?? '',
+                                fit: BoxFit.cover,
+                              );
+                            },
+                          ),
+                          Positioned(
+                            bottom: 12, right: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text('${_currentSlide + 1} / ${slides.length}', style: AppFonts.poppins(size: 10, color: Colors.white)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        GoldButton(
+                          label: _isDownloading ? 'DOWNLOADING...' : '📥 DOWNLOAD ZIP',
+                          loading: _isDownloading,
+                          onTap: _isDownloading ? null : _downloadZip,
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 50),
+                            side: const BorderSide(color: AppColors.gold, width: 1),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text('CLOSE', style: AppFonts.poppins(size: 13, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -425,45 +566,332 @@ class _CarouselCard extends StatelessWidget {
 }
 
 // ── Video Card ────────────────────────────────────────────────────────────────
-class _VideoCard extends StatelessWidget {
+class _VideoCard extends StatefulWidget {
   final Map<String, dynamic> data;
   final String docId;
 
   const _VideoCard({required this.data, required this.docId});
 
   @override
-  Widget build(BuildContext context) {
-    final videoUrl = data['videoUrl'] as String? ?? '';
-    final thumbnailUrl = data['thumbnailUrl'] as String? ?? '';
+  State<_VideoCard> createState() => _VideoCardState();
+}
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.15), width: 0.8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (thumbnailUrl.isNotEmpty)
-              Image.network(thumbnailUrl, fit: BoxFit.cover)
-            else
-              const Center(child: Icon(Icons.play_circle_fill, color: AppColors.gold, size: 40)),
-            
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+class _VideoCardState extends State<_VideoCard> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final thumbnailUrl = widget.data['thumbnailUrl'] as String? ?? widget.data['originalImageUrl'] as String? ?? '';
+    
+    // If we don't have a dedicated thumbnail, initialize a muted video preview
+    if (thumbnailUrl.isEmpty || !thumbnailUrl.startsWith('http')) {
+      _initializePreview();
+    }
+  }
+
+  Future<void> _initializePreview() async {
+    final videoUrl = widget.data['editedImageUrl'] as String? ?? widget.data['videoUrl'] as String? ?? '';
+    if (videoUrl.isEmpty) return;
+
+    _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+    try {
+      await _controller!.initialize();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+        _controller!.setVolume(0); // Muted preview
+        _controller!.setLooping(true);
+        _controller!.play();
+      }
+    } catch (e) {
+      debugPrint('Error initializing video preview: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final videoUrl = widget.data['editedImageUrl'] as String? ?? widget.data['videoUrl'] as String? ?? '';
+    final thumbnailUrl = widget.data['thumbnailUrl'] as String? ?? widget.data['originalImageUrl'] as String? ?? '';
+    final prompt = widget.data['prompt'] as String? ?? 'AI Video';
+    
+    final metadata = widget.data['metadata'] as Map<String, dynamic>?;
+    final videoType = metadata?['videoType'] as String? ?? 'VIDEO';
+
+    return GestureDetector(
+      onTap: () {
+        if (videoUrl.isNotEmpty) {
+          showDialog(
+            context: context,
+            builder: (context) => _VideoDetailDialog(videoUrl: videoUrl, prompt: prompt),
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.15), width: 0.8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (thumbnailUrl.isNotEmpty && thumbnailUrl.startsWith('http'))
+                Image.network(
+                  thumbnailUrl, 
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildVideoOrPlaceholder(),
+                )
+              else
+                _buildVideoOrPlaceholder(),
+              
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        videoType.toUpperCase(), 
+                        style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold),
+                      ),
+                      if (prompt.isNotEmpty)
+                        Text(
+                          prompt,
+                          style: AppFonts.poppins(size: 9, color: Colors.white70),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
-                child: Text('Video', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+              ),
+              
+              // Muted indicator
+              if (_isInitialized)
+                const Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Icon(Icons.volume_off, color: Colors.white54, size: 14),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoOrPlaceholder() {
+    if (_isInitialized && _controller != null) {
+      return FittedBox(
+        fit: BoxFit.cover,
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(
+          width: _controller!.value.size.width,
+          height: _controller!.value.size.height,
+          child: VideoPlayer(_controller!),
+        ),
+      );
+    }
+    return Container(
+      color: Colors.black,
+      child: const Center(child: Icon(Icons.play_circle_fill, color: AppColors.gold, size: 40)),
+    );
+  }
+}
+
+class _VideoDetailDialog extends StatefulWidget {
+  final String videoUrl;
+  final String prompt;
+
+  const _VideoDetailDialog({required this.videoUrl, required this.prompt});
+
+  @override
+  State<_VideoDetailDialog> createState() => _VideoDetailDialogState();
+}
+
+class _VideoDetailDialogState extends State<_VideoDetailDialog> {
+  late VideoPlayerController _controller;
+  bool _initialized = false;
+  bool _isDownloading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
+      ..initialize().then((_) {
+        setState(() => _initialized = true);
+        _controller.play();
+        _controller.setLooping(true);
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _downloadVideo() async {
+    setState(() => _isDownloading = true);
+    try {
+      debugPrint('📥 Downloading video from: ${widget.videoUrl}');
+      
+      final response = await http.get(Uri.parse(widget.videoUrl));
+      
+      if (response.statusCode == 200) {
+        debugPrint('✅ Video downloaded: ${response.bodyBytes.length} bytes');
+        
+        // Save to gallery using gal package
+        final tempDir = await getTemporaryDirectory();
+        final fileName = 'TWINORA_${DateTime.now().millisecondsSinceEpoch}.mp4';
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsBytes(response.bodyBytes);
+        
+        // Add to gallery using gal package
+        await Gal.putVideo(file.path);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Video saved to gallery!', style: AppFonts.poppins(color: Colors.white)),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Failed to download: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ Download error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Download failed: $e', style: AppFonts.poppins(color: Colors.white)),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: AspectRatio(
+                      aspectRatio: _initialized ? _controller.value.aspectRatio : 1,
+                      child: _initialized 
+                        ? VideoPlayer(_controller)
+                        : const Center(child: CircularProgressIndicator(color: AppColors.gold)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('PROMPT', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+                        const SizedBox(height: 4),
+                        Text(widget.prompt, style: AppFonts.poppins(size: 13, color: Colors.white)),
+                        const SizedBox(height: 20),
+                        // Download Button
+                        GestureDetector(
+                          onTap: _isDownloading ? null : _downloadVideo,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Center(
+                              child: _isDownloading
+                                  ? const SizedBox(
+                                      width: 20, height: 20,
+                                      child: CircularProgressIndicator(color: AppColors.black, strokeWidth: 2),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.download_rounded, color: AppColors.black, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'DOWNLOAD VIDEO',
+                                          style: AppFonts.poppins(
+                                            size: 12,
+                                            weight: FontWeight.w700,
+                                            color: AppColors.black,
+                                            letterSpacing: 1.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Close Button
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 50),
+                            side: const BorderSide(color: AppColors.gold, width: 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'CLOSE',
+                            style: AppFonts.poppins(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: AppColors.gold,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -853,25 +1281,51 @@ class _VideosTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('content')
+          .where('type', isEqualTo: 'video')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return _emptyState('No videos yet', Icons.play_circle_outline);
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            return _VideoCard(data: docs[index].data() as Map<String, dynamic>, docId: docs[index].id);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _emptyState(String message, IconData icon) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.play_circle_outline,
-            color: AppColors.gold.withValues(alpha: 0.3),
-            size: 64,
-          ),
+          Icon(icon, color: AppColors.gold.withValues(alpha: 0.3), size: 64),
           const SizedBox(height: 16),
-          Text(
-            'No videos yet.\nGenerate your first video!',
-            textAlign: TextAlign.center,
-            style: AppFonts.poppins(
-              size: 14,
-              color: AppColors.muted,
-              height: 1.6,
-            ),
-          ),
+          Text(message, textAlign: TextAlign.center, style: AppFonts.poppins(size: 14, color: AppColors.muted)),
         ],
       ),
     );

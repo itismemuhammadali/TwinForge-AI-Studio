@@ -440,6 +440,62 @@ class _GenerateScreenState extends State<GenerateScreen> {
       ),
     ]),
     const SizedBox(height: 40),
+    if (widget.templateImage != null) ...[
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.gold.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.auto_awesome,
+                color: AppColors.gold,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PREMIUM STYLE EXTRACTION',
+                    style: AppFonts.poppins(
+                      size: 10,
+                      weight: FontWeight.w800,
+                      color: AppColors.gold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Using a template requires deep AI analysis for precise style matching, which may take an extra moment.',
+                    style: AppFonts.poppins(
+                      size: 11,
+                      color: AppColors.white.withValues(alpha: 0.8),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 24),
+    ],
     GoldButton(
       label: _generating ? 'MANIFESTING...' : 'RENDER TWIN',
       loading: _generating,

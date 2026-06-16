@@ -4,6 +4,8 @@ import '../widgets/app_widgets.dart';
 import '../services/stock_image_service.dart';
 import 'generate_screen.dart';
 
+import 'profile_screen.dart';
+
 class MagazineScreen extends StatefulWidget {
   const MagazineScreen({super.key});
 
@@ -50,7 +52,9 @@ class _MagazineScreenState extends State<MagazineScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: const AimrAppBar(),
+      appBar: AimrAppBar(
+        actions: [],
+      ),
       body: Column(
         children: [
           Expanded(
