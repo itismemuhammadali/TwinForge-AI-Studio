@@ -3,7 +3,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
 import 'talking_head_screen.dart';
-import 'broll_screen.dart';
+import 'broll_entry_point_screen.dart';
 import 'carousel_screen.dart';
 
 class ConversionScreen extends StatelessWidget {
@@ -101,7 +101,7 @@ class ConversionScreen extends StatelessWidget {
                 color: const Color(0xFF3498DB),
                 onTap: () => _navigate(
                   context,
-                  BrollScreen(content: content),
+                  BrollEntryPointScreen(),
                 ),
               ),
               const SizedBox(height: 16),

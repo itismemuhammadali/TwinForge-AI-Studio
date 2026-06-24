@@ -426,6 +426,229 @@ class FalAiService {
     }
   }
 
+  /// Generate video from a single image with a prompt (image-to-video) with face preservation
+  Future<String> generateVideoFromImage({
+    required String imageUrl,
+    required String prompt,
+  }) async {
+    try {
+      debugLog('🎬 Starting image-to-video generation with face preservation...');
+      debugLog('📸 Image: $imageUrl');
+      debugLog('✍️ Prompt: $prompt');
+
+      if (apiKey.isEmpty) {
+        throw Exception('FAL AI API key is empty');
+      }
+
+      // Use Kling Video with face reference for better face preservation
+      final url = Uri.parse('https://queue.fal.run/fal-ai/kling-video/v2.1/pro/image-to-video');
+
+      final requestBody = {
+        'prompt': prompt,
+        'image_url': imageUrl,
+      };
+
+      debugLog('📤 Submitting image-to-video task with face reference...');
+
+      final submitResponse = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Key $apiKey',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      debugLog('📥 Submit Response Code: ${submitResponse.statusCode}');
+
+      if (submitResponse.statusCode != 200 && submitResponse.statusCode != 201) {
+        // Fallback to MiniMax if Kling fails
+        debugLog('⚠️ Kling failed, falling back to MiniMax...');
+        return _generateVideoMiniMax(imageUrl: imageUrl, prompt: prompt);
+      }
+
+      final submitData = jsonDecode(submitResponse.body);
+      final requestId = submitData['request_id'];
+      final statusUrl = submitData['status_url'];
+      final responseUrl = submitData['response_url'];
+
+      debugLog('🆔 Task submitted! Request ID: $requestId');
+
+      // Poll for completion
+      final pollUrl = statusUrl != null
+          ? Uri.parse(statusUrl)
+          : Uri.parse('https://queue.fal.run/fal-ai/kling-video/v2.1/pro/image-to-video/requests/$requestId/status');
+
+      int attempts = 0;
+      const maxAttempts = 120;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        debugLog('⏳ Polling (Attempt $attempts/$maxAttempts)...');
+
+        try {
+          final statusResponse = await http.get(
+            pollUrl,
+            headers: {'Authorization': 'Key $apiKey'},
+          ).timeout(const Duration(seconds: 10));
+
+          if (statusResponse.statusCode == 200 || statusResponse.statusCode == 202) {
+            final statusData = jsonDecode(statusResponse.body);
+            final status = statusData['status'];
+            debugLog('📊 Status: $status');
+
+            if (status == 'COMPLETED') {
+              break;
+            } else if (status == 'FAILED') {
+              throw Exception('Video generation failed: ${statusData['error'] ?? 'Unknown error'}');
+            }
+          }
+        } catch (e) {
+          debugLog('⚠️ Polling error: $e');
+        }
+
+        await Future.delayed(const Duration(seconds: 5));
+      }
+
+      // Fetch final result
+      final finalUrl = responseUrl != null
+          ? Uri.parse(responseUrl)
+          : Uri.parse('https://queue.fal.run/fal-ai/kling-video/v2.1/pro/image-to-video/requests/$requestId');
+
+      final resultResponse = await http.get(
+        finalUrl,
+        headers: {'Authorization': 'Key $apiKey'},
+      );
+
+      if (resultResponse.statusCode == 200) {
+        final resultData = jsonDecode(resultResponse.body);
+        final response = resultData['response'] ?? resultData;
+
+        if (response['video'] != null) {
+          final video = response['video'];
+          if (video is Map && video['url'] != null) {
+            debugLog('✅ Video generated: ${video['url']}');
+            return video['url'];
+          } else if (video is String) {
+            debugLog('✅ Video generated: $video');
+            return video;
+          }
+        }
+
+        if (response['video_url'] != null) {
+          debugLog('✅ Video generated: ${response['video_url']}');
+          return response['video_url'];
+        }
+
+        throw Exception('No video URL in response');
+      } else {
+        throw Exception('Failed to fetch result: ${resultResponse.statusCode}');
+      }
+    } catch (e) {
+      debugLog('❌ Error: $e');
+      rethrow;
+    }
+  }
+
+  /// Fallback video generation using MiniMax
+  Future<String> _generateVideoMiniMax({
+    required String imageUrl,
+    required String prompt,
+  }) async {
+    final url = Uri.parse('https://queue.fal.run/fal-ai/minimax-video');
+
+    final requestBody = {
+      'prompt': prompt,
+      'image_url': imageUrl,
+    };
+
+    debugLog('📤 Submitting to MiniMax...');
+
+    final submitResponse = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Key $apiKey',
+      },
+      body: jsonEncode(requestBody),
+    );
+
+    if (submitResponse.statusCode != 200 && submitResponse.statusCode != 201) {
+      throw Exception('Failed to submit task: ${submitResponse.body}');
+    }
+
+    final submitData = jsonDecode(submitResponse.body);
+    final requestId = submitData['request_id'];
+    final statusUrl = submitData['status_url'];
+    final responseUrl = submitData['response_url'];
+
+    // Poll for completion
+    final pollUrl = statusUrl != null
+        ? Uri.parse(statusUrl)
+        : Uri.parse('https://queue.fal.run/fal-ai/minimax-video/requests/$requestId/status');
+
+    int attempts = 0;
+    const maxAttempts = 120;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+
+      try {
+        final statusResponse = await http.get(
+          pollUrl,
+          headers: {'Authorization': 'Key $apiKey'},
+        ).timeout(const Duration(seconds: 10));
+
+        if (statusResponse.statusCode == 200 || statusResponse.statusCode == 202) {
+          final statusData = jsonDecode(statusResponse.body);
+          final status = statusData['status'];
+
+          if (status == 'COMPLETED') {
+            break;
+          } else if (status == 'FAILED') {
+            throw Exception('Video generation failed');
+          }
+        }
+      } catch (e) {
+        debugLog('⚠️ Polling error: $e');
+      }
+
+      await Future.delayed(const Duration(seconds: 5));
+    }
+
+    // Fetch final result
+    final finalUrl = responseUrl != null
+        ? Uri.parse(responseUrl)
+        : Uri.parse('https://queue.fal.run/fal-ai/minimax-video/requests/$requestId');
+
+    final resultResponse = await http.get(
+      finalUrl,
+      headers: {'Authorization': 'Key $apiKey'},
+    );
+
+    if (resultResponse.statusCode == 200) {
+      final resultData = jsonDecode(resultResponse.body);
+      final response = resultData['response'] ?? resultData;
+
+      if (response['video'] != null) {
+        final video = response['video'];
+        if (video is Map && video['url'] != null) {
+          return video['url'];
+        } else if (video is String) {
+          return video;
+        }
+      }
+
+      if (response['video_url'] != null) {
+        return response['video_url'];
+      }
+
+      throw Exception('No video URL in response');
+    } else {
+      throw Exception('Failed to fetch result');
+    }
+  }
+
   /// Check API key validity
   static Future<bool> verifyApiKey() async {
     try {

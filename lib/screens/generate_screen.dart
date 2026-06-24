@@ -1,22 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../constants/studio_options.dart';
 import '../models/generated_content.dart';
 import '../services/stock_image_service.dart';
 import '../services/gemini_service.dart';
+
 import 'image_edit_screen.dart';
+import 'broll_image_review_screen.dart';
 
 class GenerateScreen extends StatefulWidget {
   final String? presetStyle;
   final StockImage? templateImage;
+  final String? prefilledPrompt;
+  final bool fromBroll;
   const GenerateScreen({
     super.key,
     this.presetStyle,
     this.templateImage,
+    this.prefilledPrompt,
+    this.fromBroll = false,
   });
   @override
   State<GenerateScreen> createState() => _GenerateScreenState();
@@ -38,8 +45,10 @@ class _GenerateScreenState extends State<GenerateScreen> {
   int    _batch     = 4;
   bool   _hasImage  = false;
   bool   _generating = false;
+  bool   _processingTemplate = false;
+  String? _promptError;
   File? _selectedImage;
-  final  _enhCtrl   = TextEditingController();
+  final  _promptCtrl = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -48,6 +57,314 @@ class _GenerateScreenState extends State<GenerateScreen> {
     _mood     = StudioOptions.moods[0];
     _location = StudioOptions.locations[0];
     _outfit   = StudioOptions.outfitStyles[0];
+    
+    // If a prefilled prompt is provided (e.g. from admin podcast), use it directly
+    if (widget.prefilledPrompt != null && widget.prefilledPrompt!.isNotEmpty) {
+      _promptCtrl.text = widget.prefilledPrompt!;
+      _batch = 1;
+    } else if (widget.templateImage != null) {
+      _processTemplateImage();
+    }
+  }
+
+  Future<void> _processTemplateImage() async {
+    if (widget.templateImage == null) return;
+    
+    setState(() {
+      _processingTemplate = true;
+      _promptError = null;
+    });
+
+    try {
+      // Download and convert template image to base64
+      final response = await http.get(Uri.parse(widget.templateImage!.imageUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download template image');
+      }
+      final templateBase64 = base64Encode(response.bodyBytes);
+      
+      // Use the existing GeminiService method to analyze template
+      final geminiService = GeminiService();
+      final prompt = await geminiService.analyzeTemplateForPose(templateBase64);
+      
+      if (mounted) {
+        setState(() {
+          _promptCtrl.text = prompt;
+          _processingTemplate = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _promptError = 'Failed to analyze template: $e';
+          _processingTemplate = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _promptCtrl.dispose();
+    super.dispose();
+  }
+
+  Widget _buildPromptBox() {
+    if (_processingTemplate) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Analyzing template style...',
+                    style: AppFonts.poppins(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Our AI is extracting the style, composition, and aesthetic from your template.',
+              style: AppFonts.poppins(
+                size: 11,
+                color: AppColors.muted,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_promptError != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Template Analysis Failed',
+                    style: AppFonts.poppins(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _promptError!,
+              style: AppFonts.poppins(
+                size: 11,
+                color: AppColors.muted,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _processingTemplate ? null : _processTemplateImage,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _processingTemplate 
+                          ? AppColors.muted.withValues(alpha: 0.2)
+                          : Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _processingTemplate 
+                            ? AppColors.muted.withValues(alpha: 0.3)
+                            : Colors.red.withValues(alpha: 0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _processingTemplate ? 'Retrying...' : 'Retry Analysis',
+                          style: AppFonts.poppins(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: _processingTemplate ? AppColors.muted : Colors.red,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _promptError = null;
+                        _promptCtrl.text = '';
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.gold.withValues(alpha: 0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Skip & Continue',
+                          style: AppFonts.poppins(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  color: AppColors.gold,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'AI-Generated Style Prompt',
+                  style: AppFonts.poppins(
+                    size: 12,
+                    weight: FontWeight.w700,
+                    color: AppColors.gold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Feel free to edit the prompt to fine-tune the style for your image:',
+            style: AppFonts.poppins(
+              size: 10,
+              color: AppColors.muted,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _promptCtrl,
+            maxLines: 10,
+            minLines: 8,
+            style: AppFonts.poppins(size: 12, color: AppColors.text, height: 1.6),
+            cursorColor: AppColors.gold,
+            decoration: InputDecoration(
+              hintText: 'Enter or edit the style prompt...',
+              hintStyle: AppFonts.poppins(
+                size: 11,
+                color: AppColors.muted.withValues(alpha: 0.5),
+                height: 1.6,
+              ),
+              filled: true,
+              fillColor: AppColors.inputBg,
+              contentPadding: const EdgeInsets.all(18),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: AppColors.white.withValues(alpha: 0.08),
+                  width: 0.8,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: AppColors.gold.withValues(alpha: 0.4),
+                  width: 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickImage() async {
@@ -209,6 +526,11 @@ class _GenerateScreenState extends State<GenerateScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
+                    // Generated Prompt Box (only show if template was provided)
+                    if (widget.templateImage != null) ...[
+                      _buildPromptBox(),
+                      const SizedBox(height: 24),
+                    ],
                   ],
                   _buildPhase01(),
                   const SizedBox(height: 56),
@@ -411,34 +733,6 @@ class _GenerateScreenState extends State<GenerateScreen> {
           options: StudioOptions.aspectRatios, icon: Icons.crop_outlined,
           onChanged: (v) => setState(() => _ratio = v))),
     ]),
-    const SizedBox(height: 24),
-    // Custom enhancer
-    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('OPTIONAL: MAKE IT CUSTOM',
-          style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2)),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _enhCtrl,
-        maxLines: 4,
-        style: AppFonts.poppins(size: 14, color: AppColors.text, height: 1.6),
-        cursorColor: AppColors.gold,
-        decoration: InputDecoration(
-          hintText: '"Golden hour glow", "holding a vintage camera"...',
-          hintStyle: AppFonts.poppins(size: 13, color: AppColors.muted.withValues(alpha: 0.3), height: 1.6),
-          filled: true,
-          fillColor: AppColors.inputBg,
-          contentPadding: const EdgeInsets.all(20),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.08), width: 0.8),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.4), width: 1),
-          ),
-        ),
-      ),
-    ]),
     const SizedBox(height: 40),
     if (widget.templateImage != null) ...[
       Container(
@@ -500,6 +794,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
       label: _generating ? 'MANIFESTING...' : 'RENDER TWIN',
       loading: _generating,
       onTap: () async {
+        // Check if template is still processing
+        if (_processingTemplate) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            backgroundColor: AppColors.surface,
+            content: Text('Please wait while we analyze your template...',
+                style: AppFonts.poppins(size: 12, color: AppColors.text)),
+          ));
+          return;
+        }
+
         if (!_hasImage || _selectedImage == null) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             backgroundColor: AppColors.surface,
@@ -515,8 +819,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
           final geminiService = GeminiService();
           List<String> generatedImages;
 
-          if (widget.templateImage != null) {
-            // Path 1: Template-Based Generation (Dual Reference)
+          if (widget.templateImage != null && widget.prefilledPrompt == null) {
+            // Path 1: Template-Based Generation (Dual Reference) — analyze template via Gemini
             generatedImages = await geminiService.generateImageWithTemplateAndReference(
               templateImageUrl: widget.templateImage!.imageUrl,
               userImageFile: _selectedImage!,
@@ -533,10 +837,10 @@ class _GenerateScreenState extends State<GenerateScreen> {
               angle: _angle,
               ratio: _ratio,
               batch: _batch,
-              customDescription: _enhCtrl.text,
+              customDescription: _promptCtrl.text,
             );
           } else {
-            // Path 2: Standard Reference-Based Generation (Single Reference)
+            // Path 2: Reference-Based Generation — use prompt from text box (no Gemini analysis)
             generatedImages = await geminiService.generateImagesWithReference(
               referenceImage: _selectedImage!,
               mood: _mood,
@@ -552,6 +856,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
               angle: _angle,
               aspectRatio: _ratio,
               numberOfImages: _batch,
+              customPrompt: _promptCtrl.text.isNotEmpty ? _promptCtrl.text : null,
             );
           }
 
@@ -569,7 +874,9 @@ class _GenerateScreenState extends State<GenerateScreen> {
           final generatedContent = GeneratedContent(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             originalImageUrl: firstValidImage,
-            prompt: _enhCtrl.text.isNotEmpty ? _enhCtrl.text : '$_mood, $_location, $_outfit',
+            prompt: widget.templateImage != null 
+              ? _promptCtrl.text
+              : '$_mood, $_location, $_outfit',
             createdAt: DateTime.now(),
             contentType: 'original',
             metadata: {
@@ -593,11 +900,13 @@ class _GenerateScreenState extends State<GenerateScreen> {
           if (mounted) {
             setState(() => _generating = false);
             
-            // Navigate to edit screen
+            // Navigate to appropriate screen
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ImageEditScreen(content: generatedContent),
+                builder: (_) => widget.fromBroll
+                    ? BrollImageReviewScreen(content: generatedContent)
+                    : ImageEditScreen(content: generatedContent),
               ),
             );
           }
@@ -605,9 +914,21 @@ class _GenerateScreenState extends State<GenerateScreen> {
           debugPrint('❌ GENERATION ERROR: $e');
           if (mounted) {
             setState(() => _generating = false);
+            
+            // Provide user-friendly error message
+            String errorMessage = 'Generation failed. Please try again.';
+            if (e.toString().contains('timeout')) {
+              errorMessage = 'Generation took too long. Please try with a smaller batch size or simpler prompt.';
+            } else if (e.toString().contains('API')) {
+              errorMessage = 'API error occurred. Please check your connection and try again.';
+            } else if (e.toString().contains('image')) {
+              errorMessage = 'Image processing failed. Please try with a different image.';
+            }
+            
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               backgroundColor: AppColors.surface,
-              content: Text('Generation failed: $e',
+              duration: const Duration(seconds: 5),
+              content: Text(errorMessage,
                   style: AppFonts.poppins(size: 12, color: AppColors.text)),
             ));
           }

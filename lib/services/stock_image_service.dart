@@ -205,8 +205,16 @@ class StockImageService {
     try {
       debugLog('📤 Searching Pixabay for: "$query"');
 
-      final url = Uri.parse(
-        'https://pixabay.com/api/?key=$_pixabayApiKey&q=$query&per_page=$perPage&page=$page&image_type=photo',
+      final url = Uri.https(
+        'pixabay.com',
+        '/api/',
+        {
+          'key': _pixabayApiKey,
+          'q': query,
+          'per_page': perPage.toString(),
+          'page': page.toString(),
+          'image_type': 'photo',
+        },
       );
 
       final response = await http.get(url).timeout(
@@ -326,8 +334,16 @@ class StockImageService {
     try {
       debugLog('📤 Fetching trending images from Pixabay');
 
-      final url = Uri.parse(
-        'https://pixabay.com/api/?key=$_pixabayApiKey&per_page=$perPage&page=$page&image_type=photo&order=popular',
+      final url = Uri.https(
+        'pixabay.com',
+        '/api/',
+        {
+          'key': _pixabayApiKey,
+          'per_page': perPage.toString(),
+          'page': page.toString(),
+          'image_type': 'photo',
+          'order': 'popular',
+        },
       );
 
       final response = await http.get(url).timeout(
@@ -511,8 +527,16 @@ class StockImageService {
     try {
       debugLog('📤 Searching Pixabay videos for: "$query"');
 
-      final url = Uri.parse(
-        'https://pixabay.com/api/videos/?key=$_pixabayApiKey&q=$query&per_page=$perPage&page=$page&order=popular',
+      final url = Uri.https(
+        'pixabay.com',
+        '/api/videos/',
+        {
+          'key': _pixabayApiKey,
+          'q': query,
+          'per_page': perPage.toString(),
+          'page': page.toString(),
+          'order': 'popular',
+        },
       );
 
       final response = await http.get(url).timeout(

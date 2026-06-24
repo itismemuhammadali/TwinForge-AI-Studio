@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
@@ -134,6 +133,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     required String hips,
     required String aspectRatio,
     required int numberOfImages,
+    String? customPrompt,
   }) async {
     try {
       debugLog('🎬 Starting image generation with reference...');
@@ -145,23 +145,29 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       final base64Image = await _fileToBase64(referenceImage);
       debugLog('✅ Base64 conversion complete (${base64Image.length} chars)');
 
-      // Generate detailed prompt
-      debugLog('📝 Generating detailed prompt...');
-      final detailedPrompt = await generateImagePrompt(
-        outfit: outfit,
-        location: location,
-        hairstyle: hairstyle,
-        makeup: makeup,
-        angle: angle,
-        skin: skin,
-        mood: mood,
-        height: height,
-        bust: bust,
-        waist: waist,
-        hips: hips,
-        aspectRatio: aspectRatio,
-      );
-      debugLog('✅ Prompt generated: ${detailedPrompt.substring(0, 100)}...');
+      // Use custom prompt if provided, otherwise generate one
+      String detailedPrompt;
+      if (customPrompt != null && customPrompt.isNotEmpty) {
+        debugLog('📝 Using custom prompt from admin...');
+        detailedPrompt = customPrompt;
+      } else {
+        debugLog('📝 Generating detailed prompt...');
+        detailedPrompt = await generateImagePrompt(
+          outfit: outfit,
+          location: location,
+          hairstyle: hairstyle,
+          makeup: makeup,
+          angle: angle,
+          skin: skin,
+          mood: mood,
+          height: height,
+          bust: bust,
+          waist: waist,
+          hips: hips,
+          aspectRatio: aspectRatio,
+        );
+      }
+      debugLog('✅ Prompt ready: ${detailedPrompt.substring(0, 100)}...');
 
       // Generate images in parallel
       List<String> generatedImages = [];
@@ -231,7 +237,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       final userBase64 = await _fileToBase64(userImageFile);
 
       // 2. First, ask Gemini to analyze the template and extract pose details
-      final templateAnalysis = await _analyzeTemplateForPose(templateBase64);
+      final templateAnalysis = await analyzeTemplateForPose(templateBase64);
       debugLog('📋 Template analysis: $templateAnalysis');
 
       // 3. Construct a detailed prompt using the analysis
@@ -300,8 +306,8 @@ Generate now.''';
     }
   }
 
-  /// Analyze template image to extract pose and composition details
-  Future<String> _analyzeTemplateForPose(String templateBase64) async {
+  /// Analyze template image to extract pose and composition details  
+  Future<String> analyzeTemplateForPose(String templateBase64) async {
     try {
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
@@ -318,25 +324,49 @@ Generate now.''';
                 }
               },
               {
-                'text': '''Analyze this image and describe in detail:
-1. Body posture (standing, sitting, leaning, etc.)
-2. Exact body position and pose
-3. Limb positions (where are arms, hands, legs)
-4. Head position and angle
-5. Body angle relative to camera
-6. Where person is positioned in frame
-7. Lighting direction and style
-8. Background elements
-9. Overall composition and framing
+                'text': '''Analyze this image in extreme detail and describe EXACTLY what you see:
 
-Be very specific and detailed. This will be used to recreate the pose on a different person.'''
+1. **SCENE & SETTING**: Describe the location, room, environment, background. What space is this? Any furniture, props, or surroundings?
+
+2. **NUMBER & POSITIONING OF PEOPLE**: 
+   - How many people are visible?
+   - Where is each person positioned? (left, right, center, background, foreground, seated, standing)
+
+3. **EACH PERSON - DETAILED DESCRIPTION**:
+   For every person you can see:
+   - Their exact pose and body posture (standing, sitting, leaning, etc.)
+   - Body position and limb positions (where are arms, hands, legs positioned)
+   - Which direction they're facing (towards camera, away, side profile, angle)
+   - What are they doing? (working, talking, gesturing, holding something)
+   - Head angle and where they're looking
+   - Clothing and appearance
+   - Body language and stance
+
+4. **CAMERA & COMPOSITION**:
+   - Camera angle and view (eye level, overhead, low angle, wide shot, medium, close-up)
+   - What's in focus vs background blur
+   - How people are framed in the shot
+   - Overall composition style
+
+5. **LIGHTING**:
+   - Light direction and type (natural window light, artificial, mixed)
+   - Shadows and highlights on faces/bodies
+   - Mood created by lighting
+   - Color tones and atmosphere
+
+6. **OVERALL AESTHETIC**:
+   - Professional/casual/formal/creative style
+   - Mood and feeling of the scene
+   - Any distinctive elements or details that stand out
+
+IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, position, and what they're doing. This will be used to recreate the EXACT scene composition with different people. Include all details - poses, positions, interactions, backgrounds, lighting, everything you notice.'''
               }
             ]
           }
         ]
       };
 
-      debugLog('📋 Analyzing template for pose details...');
+      debugLog('📋 Analyzing template for scene details...');
 
       final response = await http.post(
         url,

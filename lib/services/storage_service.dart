@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
 import 'dart:developer' as developer;
 
 class StorageService {
@@ -49,6 +50,54 @@ class StorageService {
       _log('✅ Deletion successful');
     } catch (e) {
       _log('⚠️ Deletion error: $e');
+    }
+  }
+
+  /// Upload a video to Firebase Storage
+  static Future<String> uploadVideo(Uint8List data, String path) async {
+    try {
+      final sizeInMb = data.lengthInBytes / (1024 * 1024);
+      
+      _log('🚀 Uploading video...');
+      _log('📦 Size: ${sizeInMb.toStringAsFixed(2)} MB');
+      
+      final ref = _storage.ref().child(path);
+      
+      final uploadTask = ref.putData(
+        data,
+        SettableMetadata(contentType: 'video/mp4'),
+      );
+
+      final snapshot = await uploadTask;
+      _log('🏁 Video upload finished.');
+      
+      final url = await snapshot.ref.getDownloadURL();
+      _log('🔗 URL: $url');
+      return url;
+    } catch (e) {
+      _log('❌ Video upload error: $e');
+      rethrow;
+    }
+  }
+
+  /// Download video from URL and upload to Firebase Storage
+  static Future<String> downloadAndSaveVideo(String videoUrl, String path) async {
+    try {
+      _log('📥 Downloading video from: $videoUrl');
+      
+      final response = await http.get(Uri.parse(videoUrl));
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download video: ${response.statusCode}');
+      }
+      
+      final videoBytes = response.bodyBytes;
+      _log('📦 Downloaded ${videoBytes.lengthInBytes / 1024 / 1024} MB');
+      
+      return await uploadVideo(videoBytes, path);
+    } catch (e) {
+      _log('❌ Download and save error: $e');
+      rethrow;
     }
   }
 }

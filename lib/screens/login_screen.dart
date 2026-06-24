@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import 'register_screen.dart';
 import 'main_shell.dart';
 import 'forgot_password_screen.dart';
+import 'admin_portal_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -71,9 +72,11 @@ class _LoginScreenState extends State<LoginScreen>
     if (!mounted) return;
 
     if (success) {
+      final isAdmin = context.read<AuthProvider>().isAdmin;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (context, anim, anim2) => const MainShell(),
+          pageBuilder: (context, anim, anim2) =>
+              isAdmin ? const AdminPortalScreen() : const MainShell(),
           transitionsBuilder: (context, anim, anim2, child) =>
               FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 600),

@@ -6,7 +6,10 @@ import 'providers/auth_provider.dart';
 import 'providers/content_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/carousel_provider.dart';
+import 'providers/admin_provider.dart';
 import 'services/firebase_service.dart';
+import 'services/trending_service.dart';
+import 'services/higgsfield_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +28,28 @@ void main() async {
     debugPrint('Firebase initialization failed: $e');
   }
 
+  // Initialize TrendingService
+  try {
+    await TrendingService.initialize();
+  } catch (e) {
+    debugPrint('TrendingService initialization failed: $e');
+  }
+
+  // Initialize Higgsfield Service
+  try {
+    await HiggsfieldService.initialize();
+  } catch (e) {
+    debugPrint('HiggsfieldService initialization failed: $e');
+  }
+
+  // Start pre-fetching trending data in the background (don't await)
+  // This will be cached and ready when user opens the Trending tab
+  TrendingService.getTrendingTemplates().then((_) {
+    debugPrint('✅ Trending data pre-fetched in background');
+  }).catchError((e) {
+    debugPrint('⚠️ Background trending fetch failed (non-blocking): $e');
+  });
+
   runApp(const AimrTwinApp());
 }
 
@@ -39,6 +64,7 @@ class AimrTwinApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ContentProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => CarouselProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
         title: 'Twinora',

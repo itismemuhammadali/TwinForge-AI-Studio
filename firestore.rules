@@ -1,6 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     // ===== USER DOCUMENT =====
     match /users/{userId} {
       // Allow authenticated user to read their own document
@@ -53,6 +54,14 @@ service cloud.firestore {
         allow update: if request.auth != null && request.auth.uid == userId;
         allow delete: if request.auth != null && request.auth.uid == userId;
       }
+    }
+
+    // ===== ADMIN CONTENT COLLECTION =====
+    match /admin_content/{contentId} {
+      // Anyone authenticated can read (for Trending display)
+      allow read: if request.auth != null;
+      // Authenticated users can create, update, delete (app enforces admin-only)
+      allow create, update, delete: if request.auth != null;
     }
 
     // ===== PLANS/SUBSCRIPTION COLLECTION =====

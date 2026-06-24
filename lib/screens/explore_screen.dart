@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../widgets/premium_header.dart';
 import '../providers/user_provider.dart';
 import 'profile_screen.dart';
 import 'video_screen.dart';
-import 'broll_screen.dart';
+import 'broll_entry_point_screen.dart';
 import 'carousel_screen.dart';
 import 'talking_head_screen.dart';
 import 'trending_screen.dart';
@@ -82,6 +83,70 @@ class ExploreScreen extends StatelessWidget {
 
   Widget _buildGrid(BuildContext context) {
     return Column(children: [
+      // ViralFlip Card
+      GestureDetector(
+        onTap: () async {
+          final url = Uri.parse('https://viralflip.ai');
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.gold.withValues(alpha: 0.2),
+                AppColors.gold.withValues(alpha: 0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.gold.withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PLAN YOUR CONTENT',
+                style: AppFonts.poppins(
+                  size: 10,
+                  weight: FontWeight.w700,
+                  color: AppColors.gold,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Viral content with ViralFlip',
+                style: AppFonts.playfair(
+                  size: 20,
+                  weight: FontWeight.w900,
+                  color: AppColors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.open_in_new, color: AppColors.gold, size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    'viralflip.ai',
+                    style: AppFonts.poppins(
+                      size: 12,
+                      color: AppColors.gold,
+                    ).copyWith(decoration: TextDecoration.underline),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
       Row(children: [
         Expanded(child: _card(context, label: 'Trending',
             bgColor: const Color(0xFF1a1a1a), accentColor: const Color(0xFFf39c12),
@@ -103,7 +168,7 @@ class ExploreScreen extends StatelessWidget {
         Expanded(child: _card(context, label: 'B-Roll',
             bgColor: const Color(0xFF1a1a2a), accentColor: const Color(0xFFE8A0B4),
             icon: Icons.movie_filter_outlined, hasQuote: true,
-            onTap: () => _push(context, const BrollScreen()))),
+            onTap: () => _push(context, const BrollEntryPointScreen()))),
       ]),
       const SizedBox(height: 10),
       Row(children: [

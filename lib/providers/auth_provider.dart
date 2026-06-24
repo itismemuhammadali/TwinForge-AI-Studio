@@ -9,22 +9,38 @@ class AuthProvider extends ChangeNotifier {
   User? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isAdmin = false;
 
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
   bool get isEmailVerified => _currentUser?.emailVerified ?? false;
+  bool get isAdmin => _isAdmin;
 
   AuthProvider() {
     _initializeAuth();
   }
 
   void _initializeAuth() {
-    _firebaseService.authStateChanges.listen((user) {
+    _firebaseService.authStateChanges.listen((user) async {
       _currentUser = user;
+      if (user != null) {
+        await _checkAdminRole(user.uid);
+      } else {
+        _isAdmin = false;
+      }
       notifyListeners();
     });
+  }
+
+  Future<void> _checkAdminRole(String uid) async {
+    try {
+      final profile = await _firebaseService.getUserProfile(uid);
+      _isAdmin = profile?['role'] == 'admin';
+    } catch (_) {
+      _isAdmin = false;
+    }
   }
 
   Future<bool> signUp(String email, String password, String displayName, String gender) async {
@@ -96,6 +112,7 @@ class AuthProvider extends ChangeNotifier {
         onTimeout: () => throw Exception('Connection timeout. Please check your internet or Firebase configuration.'),
       );
       _currentUser = userCredential.user;
+      await _checkAdminRole(userCredential.user!.uid);
       _isLoading = false;
       notifyListeners();
 

@@ -4,7 +4,7 @@ import '../widgets/app_widgets.dart';
 import 'generate_screen.dart';
 import 'library_screen.dart';
 import 'carousel_screen.dart';
-import 'broll_screen.dart';
+import 'broll_entry_point_screen.dart';
 import 'talking_head_screen.dart';
 import 'subscription_screen.dart';
 
@@ -112,7 +112,7 @@ class HomeScreen extends StatelessWidget {
               title: 'B-Roll Video',
               subtitle: 'Convert images into short cinematic clips with motion styles.',
               tag: 'PHASE 2',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BrollScreen())),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BrollEntryPointScreen())),
             ),
             const SizedBox(height: 32),
             _SectionTitle('PHASE 03', 'Talking Head'),

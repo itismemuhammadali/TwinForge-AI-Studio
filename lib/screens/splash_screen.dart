@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../services/firebase_service.dart';
 import '../services/fcm_service.dart';
@@ -7,6 +8,7 @@ import '../services/gemini_service.dart';
 import '../services/fal_ai_service.dart';
 import 'onboarding_screen.dart';
 import 'main_shell.dart';
+import 'admin_portal_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -130,9 +132,28 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    final destination = user != null
-        ? const MainShell()
-        : const OnboardingScreen();
+    Widget destination;
+    if (user != null) {
+      // Check if user is admin
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final role = doc.data()?['role'];
+        if (role == 'admin') {
+          destination = const AdminPortalScreen();
+        } else {
+          destination = const MainShell();
+        }
+      } catch (_) {
+        destination = const MainShell();
+      }
+    } else {
+      destination = const OnboardingScreen();
+    }
+
+    if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
