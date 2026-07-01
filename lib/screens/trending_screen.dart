@@ -27,7 +27,7 @@ class _TrendingScreenState extends State<TrendingScreen> {
 
   List<StockImage> _trendingImages = [];
   List<StockVideo> _trendingVideos = [];
-  List<AdminContent> _adminPodcastImages = [];
+  List<AdminContent> _adminContent = [];
   bool _isLoading = true;
   int _page = 1;
 
@@ -35,7 +35,7 @@ class _TrendingScreenState extends State<TrendingScreen> {
   void initState() {
     super.initState();
     _fetchTrending();
-    _loadAdminPodcastContent();
+    _loadAdminContent();
   }
 
   Future<void> _fetchTrending() async {
@@ -55,6 +55,11 @@ class _TrendingScreenState extends State<TrendingScreen> {
             _trendingImages.addAll(images);
           }
         });
+        if (mounted) {
+          for (final img in images) {
+            precacheImage(NetworkImage(img.imageUrl), context);
+          }
+        }
       } else {
         // Search for business/professional videos
         final videos = await StockImageService.searchBothVideos(
@@ -84,23 +89,27 @@ class _TrendingScreenState extends State<TrendingScreen> {
   void _push(BuildContext context, Widget screen) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
-  void _loadAdminPodcastContent() {
+  void _loadAdminContent() {
     FirebaseFirestore.instance
         .collection('admin_content')
-        .where('category', isEqualTo: 'Podcast')
         .snapshots()
         .listen(
       (snapshot) {
         if (mounted) {
+          final items = snapshot.docs
+              .map((doc) => AdminContent.fromMap({'id': doc.id, ...doc.data()}))
+              .toList();
+          items.shuffle();
+          for (final item in items) {
+            precacheImage(NetworkImage(item.imageUrl), context);
+          }
           setState(() {
-            _adminPodcastImages = snapshot.docs
-                .map((doc) => AdminContent.fromMap({'id': doc.id, ...doc.data()}))
-                .toList();
+            _adminContent = items;
           });
         }
       },
       onError: (e) {
-        debugPrint('Error loading admin podcast content: $e');
+        debugPrint('Error loading admin content: $e');
       },
     );
   }
@@ -145,13 +154,11 @@ class _TrendingScreenState extends State<TrendingScreen> {
                   if (_selectedCategory == 'Image') ...[
                     Text('Hot This Week', style: AppFonts.poppins(size: 12, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2)),
                     const SizedBox(height: 16),
-                    if (_isLoading && _adminPodcastImages.isEmpty && _trendingImages.isEmpty)
+                    if (_isLoading && _adminContent.isEmpty && _trendingImages.isEmpty)
                       const Center(child: CircularProgressIndicator(color: AppColors.gold))
                     else ...[
-                      if (_adminPodcastImages.isNotEmpty) ...[
-                        Text('PODCAST', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: const Color(0xFFE74C3C), letterSpacing: 2)),
-                        const SizedBox(height: 12),
-                        _buildAdminPodcastGrid(),
+                      if (_adminContent.isNotEmpty) ...[
+                        _buildAdminContentGrid(),
                         const SizedBox(height: 24),
                         Container(height: 0.5, color: AppColors.white.withValues(alpha: 0.08)),
                         const SizedBox(height: 24),
@@ -199,7 +206,7 @@ class _TrendingScreenState extends State<TrendingScreen> {
     );
   }
 
-  Widget _buildAdminPodcastGrid() {
+  Widget _buildAdminContentGrid() {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -209,15 +216,16 @@ class _TrendingScreenState extends State<TrendingScreen> {
         mainAxisSpacing: 12,
         childAspectRatio: 0.75,
       ),
-      itemCount: _adminPodcastImages.length,
+      itemCount: _adminContent.length,
       itemBuilder: (context, index) {
-        final item = _adminPodcastImages[index];
-        return _adminPodcastCard(context, item);
+        final item = _adminContent[index];
+        return _adminContentCard(context, item);
       },
     );
   }
 
-  Widget _adminPodcastCard(BuildContext context, AdminContent item) {
+  Widget _adminContentCard(BuildContext context, AdminContent item) {
+    final categoryColor = _getCategoryColor(item.category);
     return GestureDetector(
       onTap: () {
         _push(
@@ -226,7 +234,7 @@ class _TrendingScreenState extends State<TrendingScreen> {
             templateImage: StockImage(
               id: item.id,
               imageUrl: item.imageUrl,
-              title: 'Podcast Template',
+              title: '${item.category} Template',
               photographer: 'Twinora',
               source: 'Admin',
             ),
@@ -240,7 +248,7 @@ class _TrendingScreenState extends State<TrendingScreen> {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFFE74C3C).withValues(alpha: 0.3),
+            color: categoryColor.withValues(alpha: 0.3),
             width: 0.8,
           ),
         ),
@@ -252,8 +260,8 @@ class _TrendingScreenState extends State<TrendingScreen> {
                 child: Image.network(
                   item.imageUrl,
                   fit: BoxFit.cover,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (wasSynchronouslyLoaded || frame != null) return child;
                     return Container(color: AppColors.surface, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
                   },
                   errorBuilder: (context, error, stackTrace) => Container(
@@ -282,11 +290,11 @@ class _TrendingScreenState extends State<TrendingScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE74C3C),
+                          color: categoryColor,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'PODCAST',
+                          item.category.toUpperCase(),
                           style: AppFonts.poppins(size: 8, color: AppColors.white, weight: FontWeight.w700),
                         ),
                       ),
@@ -327,6 +335,20 @@ class _TrendingScreenState extends State<TrendingScreen> {
         ),
       ),
     );
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Podcast': return const Color(0xFFE74C3C);
+      case 'Trending': return const Color(0xFFF39C12);
+      case 'B-Roll': return const Color(0xFFE8A0B4);
+      case 'Carousel': return const Color(0xFF9B59B6);
+      case 'Luxury Lifestyle': return const Color(0xFFD4AF37);
+      case 'Luxury Office': return const Color(0xFF8B6914);
+      case 'Luxury Car': return const Color(0xFFC0392B);
+      case 'Seaside Work': return const Color(0xFF1ABC9C);
+      default: return AppColors.gold;
+    }
   }
 
   Widget _buildTrendingGrid(BuildContext context) {
@@ -406,10 +428,14 @@ class _TrendingScreenState extends State<TrendingScreen> {
                 child: Image.network(
                   imageUrl,
                   fit: BoxFit.cover,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (wasSynchronouslyLoaded || frame != null) return child;
                     return Container(color: AppColors.surface, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
                   },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: AppColors.surface,
+                    child: const Icon(Icons.broken_image, color: AppColors.muted),
+                  ),
                 ),
               ),
               if (isVideo)

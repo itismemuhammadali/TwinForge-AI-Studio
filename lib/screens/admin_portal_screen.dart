@@ -85,6 +85,10 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
         final trendingCount = admin.contentList.where((c) => c.category == 'Trending').length;
         final brollCount = admin.contentList.where((c) => c.category == 'B-Roll').length;
         final carouselCount = admin.contentList.where((c) => c.category == 'Carousel').length;
+        final luxuryLifestyleCount = admin.contentList.where((c) => c.category == 'Luxury Lifestyle').length;
+        final luxuryOfficeCount = admin.contentList.where((c) => c.category == 'Luxury Office').length;
+        final luxuryCarCount = admin.contentList.where((c) => c.category == 'Luxury Car').length;
+        final seasideWorkCount = admin.contentList.where((c) => c.category == 'Seaside Work').length;
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -99,6 +103,14 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
               _statChip('B-ROLL', '$brollCount', const Color(0xFFE8A0B4)),
               const SizedBox(width: 8),
               _statChip('CAROUSEL', '$carouselCount', const Color(0xFF9B59B6)),
+              const SizedBox(width: 8),
+              _statChip('LUXURY', '$luxuryLifestyleCount', const Color(0xFFD4AF37)),
+              const SizedBox(width: 8),
+              _statChip('OFFICE', '$luxuryOfficeCount', const Color(0xFF8B6914)),
+              const SizedBox(width: 8),
+              _statChip('CAR', '$luxuryCarCount', const Color(0xFFC0392B)),
+              const SizedBox(width: 8),
+              _statChip('SEASIDE', '$seasideWorkCount', const Color(0xFF1ABC9C)),
             ],
           ),
         );
@@ -336,6 +348,14 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
         return const Color(0xFFE8A0B4);
       case 'Carousel':
         return const Color(0xFF9B59B6);
+      case 'Luxury Lifestyle':
+        return const Color(0xFFD4AF37);
+      case 'Luxury Office':
+        return const Color(0xFF8B6914);
+      case 'Luxury Car':
+        return const Color(0xFFC0392B);
+      case 'Seaside Work':
+        return const Color(0xFF1ABC9C);
       default:
         return AppColors.gold;
     }

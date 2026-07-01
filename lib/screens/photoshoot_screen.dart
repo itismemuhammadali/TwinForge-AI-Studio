@@ -19,108 +19,18 @@ class PhotoshootScreen extends StatefulWidget {
 }
 
 class _PhotoshootScreenState extends State<PhotoshootScreen> {
-  List<StockImage> _images = [];
   List<TrendingTemplate> _trendingTemplates = [];
   List<StockImage> _trendingImages = [];
-  List<AdminContent> _adminPodcastImages = [];
-  bool _isLoading = true;
+  List<AdminContent> _adminContent = [];
   bool _isTrendingLoading = false;
   bool _isLoadingMore = false;
-  int _currentPage = 1;
   int _trendingPage = 1;
-  late TextEditingController _searchController;
-  int _selectedTabIndex = 0; // 0 = Browse, 1 = Trending
-
-  // Business template categories to show
-  final List<String> _templateCategories = [
-    'business',
-    'corporate',
-    'professional',
-    'office',
-    'meeting',
-    'entrepreneur',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
-    _loadTemplateImages();
     _loadTrendingTemplates();
-    _loadAdminPodcastContent();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadTemplateImages() async {
-    setState(() => _isLoading = true);
-    try {
-      // Load images from multiple categories to show variety
-      List<StockImage> allImages = [];
-      
-      for (String category in _templateCategories) {
-        try {
-          final images = await StockImageService.searchBoth(
-            query: category,
-            perPage: 3, // Get 3 images per category
-            page: _currentPage,
-          );
-          allImages.addAll(images);
-        } catch (e) {
-          // Continue with other categories if one fails
-          continue;
-        }
-      }
-
-      setState(() {
-        _images = allImages;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading templates: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _loadMoreTemplates() async {
-    setState(() => _isLoadingMore = true);
-    try {
-      _currentPage++;
-      List<StockImage> newImages = [];
-      
-      for (String category in _templateCategories) {
-        try {
-          final images = await StockImageService.searchBoth(
-            query: category,
-            perPage: 3,
-            page: _currentPage,
-          );
-          newImages.addAll(images);
-        } catch (e) {
-          continue;
-        }
-      }
-
-      setState(() {
-        _images.addAll(newImages);
-        _isLoadingMore = false;
-      });
-    } catch (e) {
-      setState(() => _isLoadingMore = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading more templates: $e')),
-        );
-      }
-    }
+    _loadAdminContent();
   }
 
   Future<void> _loadTrendingTemplates() async {
@@ -185,6 +95,11 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
         _trendingImages = trendingImages;
         _isTrendingLoading = false;
       });
+      if (mounted) {
+        for (final img in trendingImages) {
+          precacheImage(NetworkImage(img.imageUrl), context);
+        }
+      }
       
       debugPrint('✅ Loaded ${trendingImages.length} trending images total');
     } catch (e) {
@@ -226,23 +141,27 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
     }
   }
 
-  void _loadAdminPodcastContent() {
+  void _loadAdminContent() {
     FirebaseFirestore.instance
         .collection('admin_content')
-        .where('category', isEqualTo: 'Podcast')
         .snapshots()
         .listen(
       (snapshot) {
         if (mounted) {
+          final items = snapshot.docs
+              .map((doc) => AdminContent.fromMap({'id': doc.id, ...doc.data()}))
+              .toList();
+          for (final item in items) {
+            precacheImage(NetworkImage(item.imageUrl), context);
+          }
+          items.shuffle();
           setState(() {
-            _adminPodcastImages = snapshot.docs
-                .map((doc) => AdminContent.fromMap({'id': doc.id, ...doc.data()}))
-                .toList();
+            _adminContent = items;
           });
         }
       },
       onError: (e) {
-        debugPrint('Error loading admin podcast content: $e');
+        debugPrint('Error loading admin content: $e');
       },
     );
   }
@@ -305,89 +224,9 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
 
                 const SizedBox(height: 16),
 
-                // Tab Buttons for Business / Trending
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedTabIndex = 0),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _selectedTabIndex == 0
-                                  ? AppColors.gold.withValues(alpha: 0.2)
-                                  : Colors.transparent,
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: _selectedTabIndex == 0
-                                      ? AppColors.gold
-                                      : AppColors.muted.withValues(alpha: 0.3),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Business',
-                                style: AppFonts.poppins(
-                                  size: 12,
-                                  weight: FontWeight.w700,
-                                  color: _selectedTabIndex == 0
-                                      ? AppColors.gold
-                                      : AppColors.muted,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedTabIndex = 1),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _selectedTabIndex == 1
-                                  ? AppColors.gold.withValues(alpha: 0.2)
-                                  : Colors.transparent,
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: _selectedTabIndex == 1
-                                      ? AppColors.gold
-                                      : AppColors.muted.withValues(alpha: 0.3),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Trending',
-                                style: AppFonts.poppins(
-                                  size: 12,
-                                  weight: FontWeight.w700,
-                                  color: _selectedTabIndex == 1
-                                      ? AppColors.gold
-                                      : AppColors.muted,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Images Grid - Business or Trending
+                // Images Grid
                 Expanded(
-                  child: _selectedTabIndex == 0
-                      ? _buildBusinessContent()
-                      : _buildTrendingContent(),
+                  child: _buildTrendingContent(),
                 ),
               ],
             ),
@@ -397,68 +236,8 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
     );
   }
 
-  Widget _buildBusinessContent() {
-    if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: AppColors.gold),
-            const SizedBox(height: 16),
-            Text(
-              'Loading business templates...',
-              style: AppFonts.poppins(color: AppColors.muted),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_images.isEmpty) {
-      return Center(
-        child: Text(
-          'No business templates found.',
-          style: AppFonts.poppins(color: AppColors.muted),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.65,
-            ),
-            itemCount: _images.length,
-            itemBuilder: (context, index) {
-              final image = _images[index];
-              return _buildTemplateCard(context, image);
-            },
-          ),
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GestureDetector(
-              onTap: _isLoadingMore ? null : _loadMoreTemplates,
-              child: _buildLoadMoreButton(),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTrendingContent() {
-    if (_isTrendingLoading && _adminPodcastImages.isEmpty) {
+    if (_isTrendingLoading && _adminContent.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -474,7 +253,7 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
       );
     }
 
-    if (_adminPodcastImages.isEmpty && _trendingImages.isEmpty) {
+    if (_adminContent.isEmpty && _trendingImages.isEmpty) {
       return Center(
         child: Text(
           'No trending templates available.',
@@ -488,16 +267,16 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Admin-uploaded Podcast images
-          if (_adminPodcastImages.isNotEmpty) ...[
+          // Admin-uploaded content
+          if (_adminContent.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
               child: Text(
-                'PODCAST',
+                'TEMPLATES',
                 style: AppFonts.poppins(
                   size: 10,
                   weight: FontWeight.w700,
-                  color: const Color(0xFFE74C3C),
+                  color: AppColors.gold,
                   letterSpacing: 2,
                 ),
               ),
@@ -512,10 +291,10 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.65,
               ),
-              itemCount: _adminPodcastImages.length,
+              itemCount: _adminContent.length,
               itemBuilder: (context, index) {
-                final item = _adminPodcastImages[index];
-                return _buildAdminPodcastCard(context, item);
+                final item = _adminContent[index];
+                return _buildAdminContentCard(context, item);
               },
             ),
             const SizedBox(height: 16),
@@ -648,18 +427,12 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
               child: Image.network(
                 image.imageUrl,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
                   return Container(
                     color: AppColors.surface,
                     child: Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.gold,
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
+                      child: CircularProgressIndicator(color: AppColors.gold),
                     ),
                   );
                 },
@@ -779,7 +552,22 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
     );
   }
 
-  Widget _buildAdminPodcastCard(BuildContext context, AdminContent item) {
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Podcast': return const Color(0xFFE74C3C);
+      case 'Trending': return const Color(0xFFF39C12);
+      case 'B-Roll': return const Color(0xFFE8A0B4);
+      case 'Carousel': return const Color(0xFF9B59B6);
+      case 'Luxury Lifestyle': return const Color(0xFFD4AF37);
+      case 'Luxury Office': return const Color(0xFF8B6914);
+      case 'Luxury Car': return const Color(0xFFC0392B);
+      case 'Seaside Work': return const Color(0xFF1ABC9C);
+      default: return AppColors.gold;
+    }
+  }
+
+  Widget _buildAdminContentCard(BuildContext context, AdminContent item) {
+    final categoryColor = _getCategoryColor(item.category);
     return GestureDetector(
       onTap: () {
         _push(
@@ -788,7 +576,7 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
             templateImage: StockImage(
               id: item.id,
               imageUrl: item.imageUrl,
-              title: 'Podcast Template',
+              title: '${item.category} Template',
               photographer: 'Twinora',
               source: 'Admin',
             ),
@@ -800,12 +588,12 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFFE74C3C).withValues(alpha: 0.4),
+            color: categoryColor.withValues(alpha: 0.4),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFE74C3C).withValues(alpha: 0.1),
+              color: categoryColor.withValues(alpha: 0.1),
               blurRadius: 8,
             ),
           ],
@@ -818,8 +606,8 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
               child: Image.network(
                 item.imageUrl,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
                   return Container(
                     color: AppColors.surface,
                     child: const Center(
@@ -859,11 +647,11 @@ class _PhotoshootScreenState extends State<PhotoshootScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE74C3C),
+                        color: categoryColor,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'PODCAST',
+                        item.category.toUpperCase(),
                         style: AppFonts.poppins(
                           size: 8,
                           color: AppColors.white,

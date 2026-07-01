@@ -69,6 +69,10 @@ class AdminProvider extends ChangeNotifier {
     'Trending',
     'B-Roll',
     'Carousel',
+    'Luxury Lifestyle',
+    'Luxury Office',
+    'Luxury Car',
+    'Seaside Work',
   ];
 
   void loadAdminContent() {

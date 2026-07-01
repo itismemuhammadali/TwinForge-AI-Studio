@@ -5,12 +5,9 @@ import '../theme/app_theme.dart';
 import '../widgets/premium_header.dart';
 import '../providers/user_provider.dart';
 import 'profile_screen.dart';
-import 'video_screen.dart';
 import 'broll_entry_point_screen.dart';
 import 'carousel_screen.dart';
-import 'talking_head_screen.dart';
 import 'trending_screen.dart';
-import 'magazine_screen.dart';
 import 'notifications_screen.dart';
 import 'generate_screen_v2.dart';
 
@@ -19,6 +16,33 @@ class ExploreScreen extends StatelessWidget {
 
   void _push(BuildContext context, Widget screen) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+
+  void _showComingSoon(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.lock_outline, color: AppColors.gold, size: 22),
+            const SizedBox(width: 10),
+            Text('Coming Soon', style: AppFonts.poppins(size: 16, weight: FontWeight.w700, color: AppColors.white)),
+          ],
+        ),
+        content: Text(
+          'This feature is currently in development and will be available soon.',
+          style: AppFonts.poppins(size: 13, color: AppColors.muted, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK', style: AppFonts.poppins(size: 13, weight: FontWeight.w700, color: AppColors.gold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +107,70 @@ class ExploreScreen extends StatelessWidget {
 
   Widget _buildGrid(BuildContext context) {
     return Column(children: [
+      // Community Card
+      GestureDetector(
+        onTap: () async {
+          final url = Uri.parse('https://app.briefee.com/community/accept-link-invitation?token=6s1s9vh98u5lb2svgpx0e7v83w1ach42fmyphelw');
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF7B68EE).withValues(alpha: 0.2),
+                const Color(0xFF7B68EE).withValues(alpha: 0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFF7B68EE).withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'COMMUNITY',
+                style: AppFonts.poppins(
+                  size: 10,
+                  weight: FontWeight.w700,
+                  color: const Color(0xFF7B68EE),
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Join Twinora Community',
+                style: AppFonts.playfair(
+                  size: 20,
+                  weight: FontWeight.w900,
+                  color: AppColors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.open_in_new, color: const Color(0xFF7B68EE), size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    'briefee.com',
+                    style: AppFonts.poppins(
+                      size: 12,
+                      color: const Color(0xFF7B68EE),
+                    ).copyWith(decoration: TextDecoration.underline),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
       // ViralFlip Card
       GestureDetector(
         onTap: () async {
@@ -163,7 +251,7 @@ class ExploreScreen extends StatelessWidget {
         Expanded(child: _card(context, label: 'Video',
             bgColor: const Color(0xFF0a1a0a), accentColor: const Color(0xFF4A8A6F),
             icon: Icons.play_circle_outline, hasPlay: true,
-            onTap: () => _push(context, const VideoScreen()))),
+            onTap: () => _showComingSoon(context))),
         const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'B-Roll',
             bgColor: const Color(0xFF1a1a2a), accentColor: const Color(0xFFE8A0B4),
@@ -180,16 +268,19 @@ class ExploreScreen extends StatelessWidget {
         Expanded(child: _card(context, label: 'Magazine',
             bgColor: const Color(0xFF1a0a0a), accentColor: const Color(0xFFE74C3C),
             icon: Icons.newspaper_outlined, hasMagazine: true,
-            onTap: () => _push(context, const MagazineScreen()))),
+            onTap: () => _showComingSoon(context))),
       ]),
       const SizedBox(height: 10),
       Row(children: [
         Expanded(child: _card(context, label: 'Avatar',
             bgColor: const Color(0xFF0a0a1a), accentColor: const Color(0xFF7B68EE),
             icon: Icons.face_retouching_natural,
-            onTap: () => _push(context, const TalkingHeadScreen()))),
+            onTap: () => _showComingSoon(context))),
         const SizedBox(width: 10),
-        Expanded(child: Container()),
+        Expanded(child: _card(context, label: 'Talking Head',
+            bgColor: const Color(0xFF1a0a1a), accentColor: const Color(0xFFE8A0B4),
+            icon: Icons.record_voice_over_outlined,
+            onTap: () => _showComingSoon(context))),
       ]),
     ]);
   }
