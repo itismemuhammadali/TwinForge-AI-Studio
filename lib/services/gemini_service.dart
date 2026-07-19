@@ -134,6 +134,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     required String aspectRatio,
     required int numberOfImages,
     String? customPrompt,
+    String propEnhancers = '',
   }) async {
     try {
       debugLog('🎬 Starting image generation with reference...');
@@ -165,6 +166,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
           waist: waist,
           hips: hips,
           aspectRatio: aspectRatio,
+          propEnhancers: propEnhancers,
         );
       }
       debugLog('✅ Prompt ready: ${detailedPrompt.substring(0, 100)}...');
@@ -703,6 +705,115 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
       }
     } catch (e) {
       debugLog('❌ Exception in _generateSingleImageFromPrompt: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate magazine cover using template and user's photo
+  Future<String> generateMagazineCover({
+    required File templateImage,
+    required File userPhoto,
+    String imagePrompt = '',
+    String overlayPrompt = '',
+    String aspectRatio = '3:4',
+  }) async {
+    try {
+      debugLog(' magazine: Starting magazine generation...');
+
+      final templateBase64 = await _fileToBase64(templateImage);
+      final userBase64 = await _fileToBase64(userPhoto);
+
+      String prompt = '''Generate a magazine cover. This is the person whose face MUST be on the cover. Copy their exact face, skin tone, facial features, and identity onto the magazine cover shown in the next image. The magazine cover is just a layout template - replace any face on it with this person's face. Make it look like this person is the cover star of this magazine. Keep their face sharp, clear, and recognizable. Do not change their facial features.''';
+
+      if (imagePrompt.isNotEmpty) {
+        prompt += '\n\nAdditional style: $imagePrompt';
+      }
+
+      if (overlayPrompt.isNotEmpty) {
+        prompt += '\n\nText overlays: $overlayPrompt';
+      }
+
+      debugLog('📝 Magazine prompt ready');
+
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+      );
+
+      // User photo FIRST with label, then template with label
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {'text': 'THIS IS THE PERSON - USE THEIR FACE:'},
+              {
+                'inlineData': {
+                  'mimeType': 'image/jpeg',
+                  'data': userBase64,
+                }
+              },
+              {'text': 'THIS IS THE MAGAZINE TEMPLATE LAYOUT - USE ONLY THE DESIGN:'},
+              {
+                'inlineData': {
+                  'mimeType': 'image/jpeg',
+                  'data': templateBase64,
+                }
+              },
+              {'text': prompt}
+            ]
+          }
+        ],
+        'generationConfig': {
+          'imageConfig': {
+            'aspectRatio': _mapAspectRatio(aspectRatio),
+          }
+        }
+      };
+
+      debugLog('📤 Sending magazine generation request...');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 120),
+        onTimeout: () {
+          throw Exception('API request timeout after 120 seconds');
+        },
+      );
+
+      debugLog('📥 Response received with status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          
+          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+            final parts = candidate['content']['parts'];
+            
+            for (int i = 0; i < parts.length; i++) {
+              final part = parts[i];
+              
+              if (part['inlineData'] != null) {
+                final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
+                final imageData = part['inlineData']['data'];
+                debugLog('✅ Magazine cover generated successfully');
+                return 'data:$mimeType;base64,$imageData';
+              }
+            }
+          }
+        }
+
+        throw Exception('No image data in response');
+      } else {
+        throw Exception('API returned status ${response.statusCode}');
+      }
+    } catch (e) {
+      debugLog('❌ Exception in generateMagazineCover: $e');
       rethrow;
     }
   }

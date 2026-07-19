@@ -11,19 +11,24 @@ import '../services/stock_image_service.dart';
 import '../services/gemini_service.dart';
 
 import 'image_edit_screen.dart';
-import 'broll_image_review_screen.dart';
 
 class GenerateScreen extends StatefulWidget {
   final String? presetStyle;
   final StockImage? templateImage;
   final String? prefilledPrompt;
   final bool fromBroll;
+  final bool fromTalkingHead;
+  final bool fromHoliday;
+  final bool fromManifestation;
   const GenerateScreen({
     super.key,
     this.presetStyle,
     this.templateImage,
     this.prefilledPrompt,
     this.fromBroll = false,
+    this.fromTalkingHead = false,
+    this.fromHoliday = false,
+    this.fromManifestation = false,
   });
   @override
   State<GenerateScreen> createState() => _GenerateScreenState();
@@ -415,33 +420,24 @@ class _GenerateScreenState extends State<GenerateScreen> {
       backgroundColor: AppColors.background,
       appBar: AimrAppBar(actions: []),
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 24),
-                  Text('GENERATE',
-                      style: AppFonts.poppins(
-                        size: 10, weight: FontWeight.w700,
-                        color: AppColors.gold, letterSpacing: 3,
-                      )),
-                  const SizedBox(height: 8),
-                  Text('Your Twin',
-                      style: AppFonts.playfair(
-                        size: 32, weight: FontWeight.w900, color: AppColors.white,
-                      )),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(children: [
-                  const SizedBox(height: 32),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 24),
+              Text('GENERATE',
+                  style: AppFonts.poppins(
+                    size: 10, weight: FontWeight.w700,
+                    color: AppColors.gold, letterSpacing: 3,
+                  )),
+              const SizedBox(height: 8),
+              Text('Your Twin',
+                  style: AppFonts.playfair(
+                    size: 32, weight: FontWeight.w900, color: AppColors.white,
+                  )),
+              const SizedBox(height: 24),
+              const SizedBox(height: 8),
                   if (widget.presetStyle != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -487,24 +483,26 @@ class _GenerateScreenState extends State<GenerateScreen> {
                           const SizedBox(height: 12),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(16),
-                            child: Image.network(
-                              widget.templateImage!.imageUrl,
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  height: 200,
-                                  color: AppColors.inputBg,
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.image_not_supported,
-                                      color: AppColors.muted,
-                                      size: 40,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 300),
+                              child: Image.network(
+                                widget.templateImage!.imageUrl,
+                                width: double.infinity,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 200,
+                                    color: AppColors.inputBg,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.image_not_supported,
+                                        color: AppColors.muted,
+                                        size: 40,
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -529,6 +527,29 @@ class _GenerateScreenState extends State<GenerateScreen> {
                     // Generated Prompt Box (only show if template was provided)
                     if (widget.templateImage != null) ...[
                       _buildPromptBox(),
+                      if (widget.templateImage!.title.toLowerCase().contains('magazine')) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: AppColors.gold, size: 18),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Copy this prompt and paste it in ChatGPT to fill in the details about yourself.',
+                                  style: AppFonts.poppins(size: 11, color: AppColors.gold, height: 1.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                     ],
                   ],
@@ -541,9 +562,6 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   _buildPhase04(),
                   const SizedBox(height: 40),
                 ]),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -619,7 +637,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
         );
       },
       child: Container(
-        width: double.infinity, height: 300,
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 200, maxHeight: 350),
         decoration: BoxDecoration(
           color: AppColors.inputBg,
           borderRadius: BorderRadius.circular(32),
@@ -634,7 +653,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   borderRadius: BorderRadius.circular(32),
                   child: Image.file(
                     _selectedImage!,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                   ),
                 ),
                 Positioned(bottom: 16, right: 16,
@@ -904,9 +923,11 @@ class _GenerateScreenState extends State<GenerateScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => widget.fromBroll
-                    ? BrollImageReviewScreen(content: generatedContent)
-                    : ImageEditScreen(content: generatedContent),
+                builder: (_) => ImageEditScreen(
+                  content: generatedContent,
+                  fromTalkingHead: widget.fromTalkingHead,
+                  fromBroll: widget.fromBroll,
+                ),
               ),
             );
           }

@@ -239,4 +239,57 @@ class ElevenLabsService {
       return false;
     }
   }
+
+  /// Clone a voice from audio samples
+  Future<String> cloneVoice({
+    required String name,
+    required List<int> audioBytes,
+    String description = 'User recorded voice clone',
+  }) async {
+    try {
+      debugLog('🎤 Cloning voice: $name');
+
+      final url = Uri.parse('https://api.elevenlabs.io/v1/voices/add');
+
+      final request = http.MultipartRequest('POST', url);
+      request.headers['xi-api-key'] = apiKey;
+      request.fields['name'] = name;
+      request.fields['description'] = description;
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'files',
+          audioBytes,
+          filename: 'voice_sample.mp3',
+        ),
+      );
+
+      debugLog('📤 Sending voice clone request...');
+
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          throw Exception('Voice clone request timeout');
+        },
+      );
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      debugLog('📥 Received response with status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final voiceId = data['voice_id'] ?? '';
+        debugLog('✅ Voice cloned successfully: $voiceId');
+        return voiceId;
+      } else {
+        final errorBody = response.body;
+        debugLog('❌ API Error: ${response.statusCode}');
+        debugLog('❌ Error details: $errorBody');
+        throw Exception('Voice clone failed: ${response.statusCode}: $errorBody');
+      }
+    } catch (e) {
+      debugLog('❌ Error in cloneVoice: $e');
+      rethrow;
+    }
+  }
 }

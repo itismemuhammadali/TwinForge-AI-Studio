@@ -6,7 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/stock_image_service.dart';
 
-import 'profile_screen.dart';
+
 
 class VideoScreen extends StatefulWidget {
   final StockVideo? templateVideo;
@@ -152,16 +152,16 @@ class _VideoScreenState extends State<VideoScreen> {
                 leading: Icon(Icons.camera_alt, color: AppColors.gold),
                 title: Text('Take Photo', style: AppFonts.poppins(color: AppColors.white)),
                 onTap: () {
-                  Navigator.pop(context);
                   _pickImageFromCamera();
+                  Navigator.pop(context);
                 },
               ),
               ListTile(
                 leading: Icon(Icons.photo_library, color: AppColors.gold),
                 title: Text('Choose from Gallery', style: AppFonts.poppins(color: AppColors.white)),
                 onTap: () {
-                  Navigator.pop(context);
                   _pickImage();
+                  Navigator.pop(context);
                 },
               ),
             ],

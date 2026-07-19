@@ -685,4 +685,62 @@ class FalAiService {
       return false;
     }
   }
+
+  /// Clone a voice from a sample audio and generate speech from text
+  /// Uses Dia TTS voice clone endpoint (synchronous with long timeout)
+  Future<String> cloneAndGenerateSpeech({
+    required String voiceSampleUrl,
+    required String script,
+  }) async {
+    try {
+      debugLog('🎤 Starting voice clone + speech generation with Fal AI...');
+
+      if (apiKey.isEmpty) {
+        throw Exception('FAL AI API key is empty');
+      }
+
+      final url = Uri.parse('https://fal.run/fal-ai/dia-tts/voice-clone');
+      final requestBody = {
+        'ref_audio_url': voiceSampleUrl,
+        'ref_text': script,
+        'text': script,
+      };
+
+      debugLog('📤 Sending voice clone request to Fal AI...');
+      debugLog('📊 Endpoint: $url');
+      debugLog('📊 Script length: ${script.length} chars');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Key $apiKey',
+        },
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(minutes: 10),
+        onTimeout: () {
+          throw Exception('Fal AI voice clone request timeout (10 minutes)');
+        },
+      );
+
+      debugLog('📥 Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        debugLog('📊 Response keys: ${data.keys.toList()}');
+        final audioUrl = data['audio_url'] ?? data['url'] ?? data['audio']?['url'];
+        if (audioUrl != null) {
+          debugLog('✅ Voice cloned and speech generated: $audioUrl');
+          return audioUrl.toString();
+        }
+        throw Exception('No audio URL in response: ${response.body}');
+      } else {
+        throw Exception('Fal AI voice clone error ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      debugLog('❌ Error in cloneAndGenerateSpeech: $e');
+      rethrow;
+    }
+  }
 }

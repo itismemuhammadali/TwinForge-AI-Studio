@@ -103,6 +103,14 @@ service firebase.storage {
       allow write: if false; // Disable for now, enable for admin panel later
     }
 
+    // ===== TALKING HEAD (images + audio) =====
+    match /users/{userId}/talking_head/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // ===== DENY ALL OTHER ACCESS =====
     match /{allPaths=**} {
       allow read, write: if false;

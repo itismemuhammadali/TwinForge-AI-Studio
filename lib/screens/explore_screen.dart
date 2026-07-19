@@ -241,46 +241,53 @@ class ExploreScreen extends StatelessWidget {
             icon: Icons.whatshot, hasTrending: true,
             onTap: () => _push(context, const TrendingScreen()))),
         const SizedBox(width: 10),
+        Expanded(child: _card(context, label: 'Podcast',
+            bgColor: const Color(0xFF1a0a0a), accentColor: const Color(0xFFE74C3C),
+            icon: Icons.mic, hasPodcast: true,
+            onTap: () => _push(context, const TrendingScreen(category: 'Podcast', title: 'Podcast')))),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: _card(context, label: 'Talking Head',
+            bgColor: const Color(0xFF1a0a1a), accentColor: const Color(0xFFE8A0B4),
+            icon: Icons.record_voice_over_outlined,
+            onTap: () => _push(context, const TrendingScreen(fromTalkingHead: true, category: 'Talking Head', title: 'Talking Head')))),
+        const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'Generate',
             bgColor: const Color(0xFF1a2a1a), accentColor: const Color(0xFF6B8EC4),
-            icon: Icons.image_outlined, hasTextOverlay: true,
+            icon: Icons.image_outlined, hasGenerate: true,
             onTap: () => _push(context, const GenerateScreenV2()))),
       ]),
       const SizedBox(height: 10),
       Row(children: [
-        Expanded(child: _card(context, label: 'Video',
-            bgColor: const Color(0xFF0a1a0a), accentColor: const Color(0xFF4A8A6F),
-            icon: Icons.play_circle_outline, hasPlay: true,
-            onTap: () => _showComingSoon(context))),
-        const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'B-Roll',
             bgColor: const Color(0xFF1a1a2a), accentColor: const Color(0xFFE8A0B4),
-            icon: Icons.movie_filter_outlined, hasQuote: true,
+            icon: Icons.movie_filter_outlined, hasBroll: true,
             onTap: () => _push(context, const BrollEntryPointScreen()))),
-      ]),
-      const SizedBox(height: 10),
-      Row(children: [
+        const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'Carousel',
             bgColor: const Color(0xFF1a1a0a), accentColor: const Color(0xFF9B59B6),
-            icon: Icons.view_carousel_outlined, hasCarousel: true,
+            icon: Icons.view_carousel_outlined, hasCarouselDesc: true,
             onTap: () => _push(context, const CarouselScreen()))),
-        const SizedBox(width: 10),
-        Expanded(child: _card(context, label: 'Magazine',
-            bgColor: const Color(0xFF1a0a0a), accentColor: const Color(0xFFE74C3C),
-            icon: Icons.newspaper_outlined, hasMagazine: true,
-            onTap: () => _showComingSoon(context))),
       ]),
       const SizedBox(height: 10),
       Row(children: [
-        Expanded(child: _card(context, label: 'Avatar',
+        Expanded(child: _card(context, label: 'Magazine',
+            bgColor: const Color(0xFF1a0a0a), accentColor: const Color(0xFFE74C3C),
+            icon: Icons.newspaper_outlined, hasMagazineDesc: true,
+            onTap: () => _push(context, const TrendingScreen(category: 'Magazine', title: 'Magazine')))),
+        const SizedBox(width: 10),
+        Expanded(child: _card(context, label: 'Manifestation AI',
             bgColor: const Color(0xFF0a0a1a), accentColor: const Color(0xFF7B68EE),
             icon: Icons.face_retouching_natural,
-            onTap: () => _showComingSoon(context))),
-        const SizedBox(width: 10),
-        Expanded(child: _card(context, label: 'Talking Head',
-            bgColor: const Color(0xFF1a0a1a), accentColor: const Color(0xFFE8A0B4),
-            icon: Icons.record_voice_over_outlined,
-            onTap: () => _showComingSoon(context))),
+            onTap: () => _push(context, const TrendingScreen(fromManifestation: true, category: 'Manifestation', title: 'Manifestation AI')))),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: _card(context, label: 'The Holiday Edition',
+            bgColor: const Color(0xFF0a0a2a), accentColor: const Color(0xFF5B48EE),
+            icon: Icons.videocam, hasHoliday: true, cardHeight: 100,
+            onTap: () => _push(context, const TrendingScreen(fromHoliday: true, category: 'Holiday', title: 'Holiday Edition')))),
       ]),
     ]);
   }
@@ -289,13 +296,14 @@ class ExploreScreen extends StatelessWidget {
     required String label, required Color bgColor, required Color accentColor,
     required IconData icon, required VoidCallback onTap,
     bool hasPlay = false, bool hasTextOverlay = false,
-    bool hasQuote = false, bool hasMagazine = false,
-    bool hasTrending = false, bool hasCarousel = false,
+    bool hasTrending = false, bool hasBroll = false,
+    bool hasCarouselDesc = false, bool hasMagazineDesc = false, bool hasPodcast = false,
+    bool hasGenerate = false, bool hasHoliday = false, double? cardHeight,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 170,
+        height: cardHeight ?? 170,
         decoration: BoxDecoration(
           color: bgColor, borderRadius: BorderRadius.circular(18),
           border: Border.all(color: accentColor.withValues(alpha: 0.25), width: 0.8),
@@ -303,16 +311,90 @@ class ExploreScreen extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
           child: Stack(fit: StackFit.expand, children: [
-            Container(decoration: BoxDecoration(gradient: RadialGradient(
-              center: Alignment.topRight, radius: 1.2,
-              colors: [accentColor.withValues(alpha: 0.18), bgColor],
-            ))),
+            if (hasTrending)
+              Image.asset(
+                'assets/images/trending_cover.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasPodcast)
+              Image.asset(
+                'assets/images/podcast_cover.jpeg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasBroll)
+              Image.asset(
+                'assets/images/broll_covers.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasCarouselDesc)
+              Image.asset(
+                'assets/images/carousel_cover.jpeg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasMagazineDesc)
+              Image.asset(
+                'assets/images/magazine_cover.jpg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasGenerate)
+              Image.asset(
+                'assets/images/generate_cover.jpeg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasHoliday)
+              Image.asset(
+                'assets/images/holiday_edition_cover.jpeg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else
+              Container(decoration: BoxDecoration(gradient: RadialGradient(
+                center: Alignment.topRight, radius: 1.2,
+                colors: [accentColor.withValues(alpha: 0.18), bgColor],
+              ))),
             if (hasTextOverlay) _carouselOverlay(),
-            if (hasQuote) _quoteOverlay(),
-            if (hasMagazine) _magazineOverlay(),
-            if (hasTrending) _trendingOverlay(),
-            if (hasCarousel) _carouselCardOverlay(),
-            if (!hasTextOverlay && !hasQuote && !hasMagazine && !hasTrending && !hasCarousel)
+            if (!hasTextOverlay && !hasTrending && !hasBroll && !hasCarouselDesc && !hasMagazineDesc && !hasPodcast && !hasGenerate && !hasHoliday)
               Center(child: Icon(icon, color: accentColor.withValues(alpha: 0.3), size: 52)),
             if (hasPlay)
               Center(child: Container(
@@ -341,86 +423,11 @@ class ExploreScreen extends StatelessWidget {
   Widget _carouselOverlay() => Padding(
     padding: const EdgeInsets.all(12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('How to use AI\nlike crazy', style: AppFonts.playfair(size: 16, weight: FontWeight.w900, color: AppColors.white, height: 1.2)),
+      Text('Create your AI\ntwin', style: AppFonts.playfair(size: 16, weight: FontWeight.w900, color: AppColors.white, height: 1.2)),
       const SizedBox(height: 4),
-      Text('without compromising your vision', style: AppFonts.poppins(size: 9, color: AppColors.white.withValues(alpha: 0.5))),
+      Text('Generate stunning content with AI', style: AppFonts.poppins(size: 9, color: AppColors.white.withValues(alpha: 0.5))),
     ]),
   );
 
-  Widget _trendingOverlay() => Padding(
-    padding: const EdgeInsets.all(12),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('Viral template', style: AppFonts.poppins(size: 11, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 1)),
-      const SizedBox(height: 6),
-      Text('Use this trending story style for fast social reach',
-          style: AppFonts.poppins(size: 9, color: AppColors.white.withValues(alpha: 0.8), height: 1.5)),
-      const SizedBox(height: 12),
-      Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text('Image + Video', style: AppFonts.poppins(size: 8, weight: FontWeight.w700, color: AppColors.gold)),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text('Trending', style: AppFonts.poppins(size: 8, color: AppColors.white.withValues(alpha: 0.8))),
-        ),
-      ]),
-    ]),
-  );
 
-  Widget _quoteOverlay() => Padding(
-    padding: const EdgeInsets.all(12),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('2026 is the\nyear of', style: AppFonts.poppins(size: 13, weight: FontWeight.w700, color: AppColors.white, height: 1.3)),
-      Text('peace', style: AppFonts.playfair(size: 20, weight: FontWeight.w700, color: const Color(0xFFE8A0B4), style: FontStyle.italic)),
-      const SizedBox(height: 6),
-      ...['You were born to build', 'Create overflowing income', 'Choose yourself'].map((t) =>
-        Padding(padding: const EdgeInsets.only(bottom: 2), child: Row(children: [
-          const Icon(Icons.favorite, color: Color(0xFFE8A0B4), size: 8),
-          const SizedBox(width: 4),
-          Flexible(child: Text(t, style: AppFonts.poppins(size: 8, color: AppColors.white.withValues(alpha: 0.7)))),
-        ]))),
-    ]),
-  );
-
-  Widget _magazineOverlay() => Container(
-    decoration: const BoxDecoration(gradient: LinearGradient(
-      begin: Alignment.topCenter, end: Alignment.bottomCenter,
-      colors: [Color(0xFF1a0a0a), Color(0xFF2a1010)],
-    )),
-    child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), color: const Color(0xFFE74C3C),
-        child: Text('Forbes', style: AppFonts.playfair(size: 18, weight: FontWeight.w900, color: AppColors.white))),
-      const Spacer(),
-      Text('40 WOMEN LEADERS\nTO WATCH IN 2026', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.white, letterSpacing: 0.5, height: 1.4)),
-    ])),
-  );
-
-  Widget _carouselCardOverlay() => Padding(
-    padding: const EdgeInsets.all(12),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('Social Media', style: AppFonts.poppins(size: 11, weight: FontWeight.w700, color: const Color(0xFF9B59B6), letterSpacing: 1)),
-      const SizedBox(height: 6),
-      Text('Multi-frame carousels for Instagram, LinkedIn & more',
-          style: AppFonts.poppins(size: 9, color: AppColors.white.withValues(alpha: 0.8), height: 1.5)),
-      const SizedBox(height: 12),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFF9B59B6).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text('Ready-to-post', style: AppFonts.poppins(size: 8, weight: FontWeight.w700, color: const Color(0xFF9B59B6))),
-      ),
-    ]),
-  );
 }

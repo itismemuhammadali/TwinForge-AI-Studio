@@ -72,7 +72,7 @@ class BrollEntryPointScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const TrendingScreen(showTypeSelector: false, fromBroll: true),
+                      builder: (_) => const TrendingScreen(fromBroll: true),
                     ),
                   );
                 },

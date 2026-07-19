@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gal/gal.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
 import '../services/fal_ai_service.dart';
 import '../services/storage_service.dart';
 import 'main_shell.dart';
+import 'talking_head_screen.dart';
 
 class BrollImageReviewScreen extends StatefulWidget {
   final GeneratedContent content;
@@ -22,6 +24,7 @@ class _BrollImageReviewScreenState extends State<BrollImageReviewScreen> {
   final _promptCtrl = TextEditingController();
   bool _isGenerating = false;
   bool _isSaving = false;
+  bool _saveToGallery = false;
   String? _videoUrl;
   VideoPlayerController? _videoController;
 
@@ -44,38 +47,51 @@ class _BrollImageReviewScreenState extends State<BrollImageReviewScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not authenticated');
 
-      final fileName = 'broll_${DateTime.now().millisecondsSinceEpoch}.mp4';
-      final path = 'users/${user.uid}/generatedVideos/$fileName';
+      if (_saveToGallery) {
+        await Gal.putVideo(_videoUrl!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Video saved to gallery!', style: AppFonts.poppins(color: AppColors.white)),
+              backgroundColor: const Color(0xFF2a5a2a),
+            ),
+          );
+        }
+      } else {
+        final fileName = 'broll_${DateTime.now().millisecondsSinceEpoch}.mp4';
+        final path = 'users/${user.uid}/generatedVideos/$fileName';
 
-      final savedUrl = await StorageService.downloadAndSaveVideo(_videoUrl!, path);
+        final savedUrl = await StorageService.downloadAndSaveVideo(_videoUrl!, path);
 
-      // Save to Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('library')
-          .add({
-        'type': 'video',
-        'url': savedUrl,
-        'source': 'broll',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('library')
+            .add({
+          'type': 'video',
+          'url': savedUrl,
+          'source': 'broll',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Video saved to library!', style: AppFonts.poppins(color: AppColors.white)),
+              backgroundColor: const Color(0xFF2a5a2a),
+            ),
+          );
+        }
+      }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Video saved to library!',
-                style: AppFonts.poppins(color: AppColors.white)),
-            backgroundColor: Colors.green,
-          ),
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving: $e',
-                style: AppFonts.poppins(color: AppColors.white)),
+            content: Text('Error saving: $e', style: AppFonts.poppins(color: AppColors.white)),
             backgroundColor: Colors.red,
           ),
         );
@@ -287,6 +303,57 @@ class _BrollImageReviewScreenState extends State<BrollImageReviewScreen> {
 
               // Video Actions (shown after video is generated)
               if (_videoUrl != null) ...[
+                // Save option checkbox
+                GestureDetector(
+                  onTap: () => setState(() => _saveToGallery = !_saveToGallery),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.white.withValues(alpha: 0.1),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22, height: 22,
+                          decoration: BoxDecoration(
+                            color: _saveToGallery ? AppColors.gold : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _saveToGallery ? AppColors.gold : AppColors.white.withValues(alpha: 0.3),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: _saveToGallery
+                              ? const Icon(Icons.check, color: AppColors.black, size: 14)
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Save to Gallery', style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: AppColors.white)),
+                              Text(
+                                _saveToGallery ? 'Download to your device' : 'Upload to your Twinora library',
+                                style: AppFonts.poppins(size: 11, color: AppColors.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          _saveToGallery ? Icons.download : Icons.cloud_upload,
+                          color: AppColors.gold.withValues(alpha: 0.6), size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -296,7 +363,7 @@ class _BrollImageReviewScreenState extends State<BrollImageReviewScreen> {
                         onTap: _isSaving ? null : _saveVideo,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: GoldButton(
                         label: 'REGENERATE',
@@ -311,6 +378,23 @@ class _BrollImageReviewScreenState extends State<BrollImageReviewScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+                // Turn into Talking Head
+                SizedBox(
+                  width: double.infinity,
+                  child: GoldButton(
+                    label: 'TURN INTO TALKING HEAD',
+                    outlined: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TalkingHeadScreen(content: widget.content),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
 

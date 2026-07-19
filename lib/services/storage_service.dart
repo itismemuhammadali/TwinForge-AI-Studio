@@ -100,4 +100,40 @@ class StorageService {
       rethrow;
     }
   }
+
+  /// Upload image bytes to Firebase Storage
+  static Future<String> uploadImageBytes(Uint8List data, String path) async {
+    try {
+      final sizeInMb = data.lengthInBytes / (1024 * 1024);
+      _log('🚀 Uploading image bytes... ${sizeInMb.toStringAsFixed(2)} MB');
+
+      final ref = _storage.ref().child(path);
+      final uploadTask = ref.putData(data, SettableMetadata(contentType: 'image/jpeg'));
+      final snapshot = await uploadTask;
+      final url = await snapshot.ref.getDownloadURL();
+      _log('🔗 Image URL: $url');
+      return url;
+    } catch (e) {
+      _log('❌ Image bytes upload error: $e');
+      rethrow;
+    }
+  }
+
+  /// Upload audio bytes to Firebase Storage
+  static Future<String> uploadAudioBytes(Uint8List data, String path) async {
+    try {
+      final sizeInKb = data.lengthInBytes / 1024;
+      _log('🚀 Uploading audio bytes... ${sizeInKb.toStringAsFixed(1)} KB');
+
+      final ref = _storage.ref().child(path);
+      final uploadTask = ref.putData(data, SettableMetadata(contentType: 'audio/mpeg'));
+      final snapshot = await uploadTask;
+      final url = await snapshot.ref.getDownloadURL();
+      _log('🔗 Audio URL: $url');
+      return url;
+    } catch (e) {
+      _log('❌ Audio bytes upload error: $e');
+      rethrow;
+    }
+  }
 }

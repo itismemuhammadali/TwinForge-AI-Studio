@@ -7,7 +7,9 @@ class AdminContent {
   final String id;
   final String imageUrl;
   final String category;
+  final List<String> tags;
   final String? prompt;
+  final String? overlayPrompt;
   final DateTime createdAt;
   final String uploadedBy;
 
@@ -15,7 +17,9 @@ class AdminContent {
     required this.id,
     required this.imageUrl,
     required this.category,
+    this.tags = const [],
     this.prompt,
+    this.overlayPrompt,
     required this.createdAt,
     required this.uploadedBy,
   });
@@ -24,7 +28,9 @@ class AdminContent {
         'id': id,
         'imageUrl': imageUrl,
         'category': category,
+        'tags': tags,
         'prompt': prompt,
+        'overlayPrompt': overlayPrompt,
         'createdAt': createdAt.toIso8601String(),
         'uploadedBy': uploadedBy,
       };
@@ -39,11 +45,18 @@ class AdminContent {
     } else {
       created = DateTime.now();
     }
+    final tagsRaw = map['tags'];
+    List<String> tags = [];
+    if (tagsRaw is List) {
+      tags = tagsRaw.map((e) => e.toString()).toList();
+    }
     return AdminContent(
       id: map['id'] ?? '',
       imageUrl: map['imageUrl'] ?? '',
       category: map['category'] ?? '',
+      tags: tags,
       prompt: map['prompt'],
+      overlayPrompt: map['overlayPrompt'],
       createdAt: created,
       uploadedBy: map['uploadedBy'] ?? '',
     );
@@ -69,10 +82,22 @@ class AdminProvider extends ChangeNotifier {
     'Trending',
     'B-Roll',
     'Carousel',
+    'Magazine',
     'Luxury Lifestyle',
     'Luxury Office',
     'Luxury Car',
     'Seaside Work',
+  ];
+
+  static const List<String> templateTags = [
+    'Talking Head',
+    'Podcast',
+    'Holiday',
+    'Manifestation',
+    'B-Roll',
+    'Carousel',
+    'Magazine',
+    'Trending',
   ];
 
   void loadAdminContent() {
@@ -103,7 +128,9 @@ class AdminProvider extends ChangeNotifier {
   Future<bool> uploadContent({
     required File imageFile,
     required String category,
+    List<String> tags = const [],
     String? prompt,
+    String? overlayPrompt,
     required String uploadedBy,
   }) async {
     _isUploading = true;
@@ -126,7 +153,9 @@ class AdminProvider extends ChangeNotifier {
       await _firestore.collection('admin_content').add({
         'imageUrl': imageUrl,
         'category': category,
+        'tags': tags,
         'prompt': prompt,
+        'overlayPrompt': overlayPrompt,
         'createdAt': FieldValue.serverTimestamp(),
         'uploadedBy': uploadedBy,
       });
@@ -148,6 +177,55 @@ class AdminProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _errorMessage = 'Delete failed: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateContent({
+    required String contentId,
+    String? category,
+    List<String>? tags,
+    String? prompt,
+    String? overlayPrompt,
+    File? newImageFile,
+  }) async {
+    _isUploading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final updates = <String, dynamic>{};
+
+      if (category != null) updates['category'] = category;
+      if (tags != null) updates['tags'] = tags;
+      if (prompt != null) updates['prompt'] = prompt;
+      if (overlayPrompt != null) updates['overlayPrompt'] = overlayPrompt;
+
+      if (newImageFile != null) {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final cat = category ?? '';
+        final fileName = 'admin_content/${cat.toLowerCase()}/$timestamp.jpg';
+        final ref = _storage.ref().child(fileName);
+        final data = await newImageFile.readAsBytes();
+        final uploadTask = ref.putData(
+          data,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+        final snapshot = await uploadTask;
+        updates['imageUrl'] = await snapshot.ref.getDownloadURL();
+      }
+
+      if (updates.isNotEmpty) {
+        await _firestore.collection('admin_content').doc(contentId).update(updates);
+      }
+
+      _isUploading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Update failed: $e';
+      _isUploading = false;
       notifyListeners();
       return false;
     }

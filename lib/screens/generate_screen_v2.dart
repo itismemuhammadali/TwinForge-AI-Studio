@@ -12,8 +12,6 @@ import '../services/gemini_service.dart';
 import '../providers/user_provider.dart';
 import 'generated_images_screen.dart';
 
-import 'profile_screen.dart';
-
 class GenerateScreenV2 extends StatefulWidget {
   const GenerateScreenV2({super.key});
 
@@ -173,6 +171,7 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
         hips: _hips,
         aspectRatio: _aspectRatio,
         numberOfImages: _numberOfImages,
+        propEnhancers: _propEnhancersCtrl.text,
       );
 
       // Count successful images (not errors)
@@ -408,7 +407,7 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
                 onTap: _pickImage,
                 child: Container(
                   width: double.infinity,
-                  height: 300,
+                  constraints: const BoxConstraints(minHeight: 200, maxHeight: 350),
                   decoration: BoxDecoration(
                     color: AppColors.surface.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(24),
@@ -425,7 +424,7 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
                             children: [
                               Image.file(
                                 _selectedImage!,
-                                fit: BoxFit.cover,
+                                fit: BoxFit.contain,
                               ),
                               Container(
                                 color: Colors.black.withValues(alpha: 0.3),

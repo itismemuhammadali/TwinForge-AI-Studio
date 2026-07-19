@@ -5,11 +5,8 @@ import 'dart:io';
 import 'dart:developer' as developer;
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
-import '../widgets/premium_header.dart';
 import '../providers/carousel_provider.dart';
 import '../providers/user_provider.dart';
-import 'profile_screen.dart';
-import 'notifications_screen.dart';
 import 'carousel_category_screen.dart';
 
 class CarouselScreen extends StatefulWidget {
@@ -108,8 +105,8 @@ class _CarouselScreenState extends State<CarouselScreen> {
                 style: AppFonts.poppins(size: 14, color: AppColors.white),
               ),
               onTap: () {
-                Navigator.pop(context);
                 _pickImageFromCamera();
+                Navigator.pop(context);
               },
             ),
             ListTile(
@@ -119,8 +116,8 @@ class _CarouselScreenState extends State<CarouselScreen> {
                 style: AppFonts.poppins(size: 14, color: AppColors.white),
               ),
               onTap: () {
-                Navigator.pop(context);
                 _pickImages();
+                Navigator.pop(context);
               },
             ),
           ],

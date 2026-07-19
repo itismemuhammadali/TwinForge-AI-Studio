@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../providers/admin_provider.dart';
 import '../providers/auth_provider.dart';
 import 'admin_upload_screen.dart';
+import 'admin_edit_screen.dart';
 import 'login_screen.dart';
 
 class AdminPortalScreen extends StatefulWidget {
@@ -292,20 +293,41 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                 ),
               ),
             ),
-            // Delete button
+            // Action buttons
             Positioned(
               top: 8,
               right: 8,
-              child: GestureDetector(
-                onTap: () => _confirmDelete(item),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    shape: BoxShape.circle,
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => AdminEditScreen(content: item)),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.edit, color: AppColors.gold, size: 14),
+                    ),
                   ),
-                  child: const Icon(Icons.delete_outline, color: Colors.red, size: 14),
-                ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () => _confirmDelete(item),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete_outline, color: Colors.red, size: 14),
+                    ),
+                  ),
+                ],
               ),
             ),
             // Prompt indicator

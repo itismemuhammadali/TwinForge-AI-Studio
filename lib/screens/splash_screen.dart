@@ -6,6 +6,8 @@ import '../services/firebase_service.dart';
 import '../services/fcm_service.dart';
 import '../services/gemini_service.dart';
 import '../services/fal_ai_service.dart';
+import '../services/eleven_labs_service.dart';
+import '../services/heygen_service.dart';
 import 'onboarding_screen.dart';
 import 'main_shell.dart';
 import 'admin_portal_screen.dart';
@@ -106,6 +108,14 @@ class _SplashScreenState extends State<SplashScreen>
         }),
         FalAiService.initialize().catchError((e) {
           debugPrint('⚠️ FalAiService initialization failed: $e');
+          return null;
+        }),
+        ElevenLabsService.initialize().catchError((e) {
+          debugPrint('⚠️ ElevenLabsService initialization failed: $e');
+          return null;
+        }),
+        HeyGenService.initialize().catchError((e) {
+          debugPrint('⚠️ HeyGenService initialization failed: $e');
           return null;
         }),
       ]);

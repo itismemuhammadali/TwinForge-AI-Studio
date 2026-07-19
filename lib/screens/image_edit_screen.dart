@@ -1,203 +1,101 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
-import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gal/gal.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
-import '../providers/content_provider.dart';
-import '../providers/auth_provider.dart';
-import '../services/gemini_service.dart';
-import 'conversion_screen.dart';
-import 'library_screen.dart';
+import '../services/storage_service.dart';
+import 'talking_head_creation_screen.dart';
+import 'broll_screen.dart';
 import 'main_shell.dart';
 
 class ImageEditScreen extends StatefulWidget {
   final GeneratedContent content;
-  const ImageEditScreen({super.key, required this.content});
+  final bool fromTalkingHead;
+  final bool fromBroll;
+  const ImageEditScreen({super.key, required this.content, this.fromTalkingHead = false, this.fromBroll = false});
 
   @override
   State<ImageEditScreen> createState() => _ImageEditScreenState();
 }
 
 class _ImageEditScreenState extends State<ImageEditScreen> {
-  late TextEditingController _editPromptCtrl;
-  bool _isEditing = false;
   bool _isSaving = false;
-  String? _editedImageUrl;
+  bool _isSaved = false;
+  bool _saveToGallery = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _editPromptCtrl = TextEditingController();
-  }
+  String get _imageUrl => widget.content.editedImageUrl ?? widget.content.originalImageUrl;
 
-  @override
-  void dispose() {
-    _editPromptCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _applyEdit() async {
-    if (_editPromptCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Enter an edit prompt',
-              style: AppFonts.poppins(size: 12, color: AppColors.text)),
-          backgroundColor: AppColors.surface,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isEditing = true);
-
+  Future<void> _saveImage() async {
+    setState(() => _isSaving = true);
     try {
-      // Get image bytes from URL or base64
-      final imageUrl = _editedImageUrl ?? widget.content.originalImageUrl;
-      Uint8List imageBytes;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Not authenticated');
 
-      if (imageUrl.startsWith('data:image')) {
-        final base64Str = imageUrl.split(',')[1];
-        imageBytes = base64Decode(base64Str);
-      } else if (imageUrl.startsWith('https://')) {
-        final response = await http.get(Uri.parse(imageUrl));
-        if (response.statusCode != 200) {
-          throw Exception('Failed to download image');
+      if (_saveToGallery) {
+        if (_imageUrl.startsWith('http')) {
+          final response = await http.get(Uri.parse(_imageUrl));
+          final tempDir = await Directory.systemTemp.createTemp();
+          final tempFile = File('${tempDir.path}/twinora_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          await tempFile.writeAsBytes(response.bodyBytes);
+          await Gal.putImage(tempFile.path);
+        } else if (_imageUrl.startsWith('data:image')) {
+          final base64Str = _imageUrl.split(',')[1];
+          final bytes = base64Decode(base64Str);
+          final tempDir = await Directory.systemTemp.createTemp();
+          final tempFile = File('${tempDir.path}/twinora_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          await tempFile.writeAsBytes(bytes);
+          await Gal.putImage(tempFile.path);
         }
-        imageBytes = response.bodyBytes;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Image saved to gallery!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
+          );
+        }
       } else {
-        throw Exception('Unsupported image format');
+        String bytes;
+        if (_imageUrl.startsWith('http')) {
+          final response = await http.get(Uri.parse(_imageUrl));
+          bytes = base64Encode(response.bodyBytes);
+        } else if (_imageUrl.startsWith('data:image')) {
+          bytes = _imageUrl.split(',')[1];
+        } else {
+          final file = File(_imageUrl);
+          final fileBytes = await file.readAsBytes();
+          bytes = base64Encode(fileBytes);
+        }
+
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final path = 'users/${user.uid}/generatedImages/$timestamp.jpg';
+        final savedUrl = await StorageService.uploadImageBytes(base64Decode(bytes), path);
+
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('library').add({
+          'type': 'image',
+          'url': savedUrl,
+          'source': 'generated',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Image saved to library!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
+          );
+        }
       }
-
-      // Call Gemini to edit the image
-      final result = await _callGeminiEdit(
-        imageBytes: imageBytes,
-        editPrompt: _editPromptCtrl.text.trim(),
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _editedImageUrl = result;
-        _isEditing = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Image edited successfully!',
-              style: AppFonts.poppins(color: AppColors.white)),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) setState(() { _isSaved = true; _isSaving = false; });
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _isEditing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Edit failed: $e',
-              style: AppFonts.poppins(color: AppColors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<String> _callGeminiEdit({
-    required Uint8List imageBytes,
-    required String editPrompt,
-  }) async {
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GeminiService.apiKey}',
-    );
-
-    final requestBody = {
-      'contents': [
-        {
-          'parts': [
-            {
-              'inlineData': {
-                'mimeType': 'image/jpeg',
-                'data': base64Encode(imageBytes),
-              }
-            },
-            {
-              'text':
-                  'Edit this image based on the following instruction: "$editPrompt". '
-                  'Preserve the person\'s face, identity, skin tone, and body exactly as they are. '
-                  'Only apply the requested change. Return a photorealistic, high quality result.',
-            }
-          ]
-        }
-      ],
-      'generationConfig': {
-        'responseModalities': ['IMAGE', 'TEXT'],
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red),
+        );
       }
-    };
-
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(requestBody),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final candidates = data['candidates'] as List?;
-      if (candidates != null && candidates.isNotEmpty) {
-        final parts = candidates[0]['content']['parts'] as List?;
-        if (parts != null) {
-          for (final part in parts) {
-            if (part['inlineData'] != null) {
-              final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
-              final imageData = part['inlineData']['data'];
-              return 'data:$mimeType;base64,$imageData';
-            }
-          }
-        }
-      }
-      throw Exception('No image returned from Gemini');
-    } else {
-      final error = jsonDecode(response.body);
-      final msg = error['error']?['message'] ?? 'Unknown error';
-      throw Exception('Gemini API error: $msg');
     }
   }
-
-  Future<void> _saveAndContinue() async {
-    final authProvider = context.read<AuthProvider>();
-    final contentProvider = context.read<ContentProvider>();
-
-    if (!authProvider.isAuthenticated) return;
-
-    final editedContent = GeneratedContent(
-      id: widget.content.id,
-      originalImageUrl: widget.content.originalImageUrl,
-      editedImageUrl: _editedImageUrl ?? widget.content.originalImageUrl,
-      prompt: widget.content.prompt,
-      editPrompt: _editPromptCtrl.text,
-      createdAt: widget.content.createdAt,
-      contentType: 'edited',
-      metadata: widget.content.metadata,
-    );
-
-    await contentProvider.saveContent(
-      authProvider.currentUser!.uid,
-      editedContent.toMap(),
-    );
-
-    if (mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ConversionScreen(content: editedContent),
-        ),
-      );
-    }
-  }
-
   Widget _buildImageDisplay(String imageUrl) {
     if (imageUrl.startsWith('data:image')) {
       try {
@@ -222,13 +120,12 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
   Widget _imagePlaceholder() => Container(
     height: 380,
     color: AppColors.surface,
-    child: const Icon(Icons.image_not_supported_outlined,
-        color: AppColors.muted, size: 60),
+    child: const Icon(Icons.image_not_supported_outlined, color: AppColors.muted, size: 60),
   );
 
   @override
   Widget build(BuildContext context) {
-    final displayImage = _editedImageUrl ?? widget.content.originalImageUrl;
+    final displayImage = widget.content.editedImageUrl ?? widget.content.originalImageUrl;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
@@ -239,12 +136,8 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
           child: Column(
             children: [
               const SizedBox(height: 32),
-
-              // Header
               Text('Generated Image',
-                  style: AppFonts.playfair(
-                    size: 32, weight: FontWeight.w900, color: AppColors.white,
-                  )),
+                  style: AppFonts.playfair(size: 32, weight: FontWeight.w900, color: AppColors.white)),
               const SizedBox(height: 12),
               Text(
                 'Save this to your library or discard it.',
@@ -252,173 +145,117 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
                 style: AppFonts.poppins(size: 13, color: AppColors.muted, height: 1.6),
               ),
               const SizedBox(height: 32),
-
-              // Image Preview
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(26),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.gold.withValues(alpha: 0.3),
-                      blurRadius: 30, spreadRadius: 1,
-                    ),
-                  ],
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.7), width: 1.5),
+                  boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 30, spreadRadius: 1)],
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(
-                      color: AppColors.gold.withValues(alpha: 0.7), width: 1.5,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: _buildImageDisplay(displayImage),
-                  ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: _buildImageDisplay(displayImage),
                 ),
               ),
-
-              // Show "edited" badge if image was edited
-              if (_editedImageUrl != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle_outline, color: Colors.green, size: 14),
-                      const SizedBox(width: 6),
-                      Text('Edit applied',
-                          style: AppFonts.poppins(
-                            size: 11, weight: FontWeight.w600, color: Colors.green,
-                          )),
-                    ],
-                  ),
-                ),
-              ],
-
               const SizedBox(height: 28),
 
-              // Save and Cancel Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: GoldButton(
-                      label: 'CANCEL',
-                      outlined: true,
-                      onTap: _isSaving ? null : () => Navigator.pop(context),
-                    ),
+              // Save to Gallery toggle
+              GestureDetector(
+                onTap: () => setState(() => _saveToGallery = !_saveToGallery),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.white.withValues(alpha: 0.1), width: 0.5),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: GoldButton(
-                      label: _isSaving ? 'SAVING...' : 'SAVE IMAGE',
-                      loading: _isSaving,
-                      onTap: _isSaving ? null : () => _saveToLibrary(),
+                  child: Row(children: [
+                    Container(
+                      width: 22, height: 22,
+                      decoration: BoxDecoration(
+                        color: _saveToGallery ? AppColors.gold : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _saveToGallery ? AppColors.gold : AppColors.white.withValues(alpha: 0.3), width: 1.5),
+                      ),
+                      child: _saveToGallery ? const Icon(Icons.check, color: AppColors.black, size: 14) : null,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Save to Gallery', style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: AppColors.white)),
+                        Text(_saveToGallery ? 'Download to your device' : 'Upload to your Twinora library', style: AppFonts.poppins(size: 11, color: AppColors.muted)),
+                      ],
+                    )),
+                    Icon(_saveToGallery ? Icons.download : Icons.cloud_upload, color: AppColors.gold.withValues(alpha: 0.6), size: 20),
+                  ]),
+                ),
               ),
+              const SizedBox(height: 16),
 
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: GoldButton(
+                  label: _isSaved ? 'SAVED' : (_isSaving ? 'SAVING...' : 'SAVE IMAGE'),
+                  loading: _isSaving,
+                  onTap: _isSaving || _isSaved ? null : _saveImage,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Turn into Talking Head button
+              if (widget.fromTalkingHead || (!widget.fromTalkingHead && !widget.fromBroll)) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: GoldButton(
+                    label: 'TURN INTO TALKING HEAD',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => TalkingHeadCreationScreen(content: widget.content),
+                      ));
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Turn into B-Roll button
+              if (widget.fromBroll || (!widget.fromTalkingHead && !widget.fromBroll)) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: GoldButton(
+                    label: 'TURN INTO B-ROLL',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => BrollScreen(content: widget.content),
+                      ));
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Back to Home
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: GoldButton(
+                  label: 'BACK TO HOME',
+                  outlined: true,
+                  onTap: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MainShell()),
+                      (route) => false,
+                    );
+                  },
+                ),
+              ),
               const SizedBox(height: 40),
             ],
           ),
         ),
       ),
     );
-  }
-
-  Future<void> _saveToLibrary() async {
-    try {
-      setState(() => _isSaving = true);
-
-      final user = FirebaseAuth.instance.currentUser;
-
-      if (user == null) {
-        if (mounted) {
-          setState(() => _isSaving = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Not authenticated',
-                  style: AppFonts.poppins(color: AppColors.white)),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Convert base64 image to bytes
-      String imageUrl = widget.content.originalImageUrl;
-      Uint8List imageBytes;
-
-      if (imageUrl.startsWith('data:image')) {
-        final base64Str = imageUrl.split(',')[1];
-        imageBytes = base64Decode(base64Str);
-      } else {
-        // It's a URL, download it
-        final response = await http.get(Uri.parse(imageUrl));
-        imageBytes = response.bodyBytes;
-      }
-
-      // Upload to Firebase Storage
-      final fileName = 'generated_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref('users/${user.uid}/generatedImages/$fileName');
-      await ref.putData(imageBytes);
-      final downloadUrl = await ref.getDownloadURL();
-
-      // Create GeneratedContent with the Firebase Storage URL
-      final generatedContent = GeneratedContent(
-        id: widget.content.id,
-        originalImageUrl: downloadUrl,
-        prompt: widget.content.prompt,
-        editPrompt: _editPromptCtrl.text,
-        createdAt: widget.content.createdAt,
-        contentType: 'original',
-        metadata: {
-          ...widget.content.metadata,
-          // Remove the large all_images array to avoid Firestore size limit
-        }..remove('all_images'),
-      );
-
-      final contentProvider = context.read<ContentProvider>();
-      await contentProvider.saveContent(
-        user.uid,
-        generatedContent.toMap(),
-      );
-
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Image saved to library!',
-                style: AppFonts.poppins(color: AppColors.white)),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Navigate to MainShell (with bottom nav bar)
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving: $e',
-                style: AppFonts.poppins(color: AppColors.white)),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 }

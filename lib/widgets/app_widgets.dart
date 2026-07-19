@@ -66,8 +66,8 @@ class ImageSourceBottomSheet extends StatelessWidget {
             icon: Icons.camera_alt,
             isPrimary: true,
             onTap: () {
-              Navigator.pop(context);
               onSourceSelected(ImageSource.camera);
+              Navigator.pop(context);
             },
           ),
           
@@ -80,8 +80,8 @@ class ImageSourceBottomSheet extends StatelessWidget {
             icon: Icons.photo_library,
             isPrimary: false,
             onTap: () {
-              Navigator.pop(context);
               onSourceSelected(ImageSource.gallery);
+              Navigator.pop(context);
             },
           ),
         ],
