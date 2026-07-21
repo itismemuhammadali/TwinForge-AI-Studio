@@ -12,9 +12,10 @@ import 'package:path_provider/path_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
-import '../services/heygen_service.dart';
 import '../services/fal_ai_service.dart';
 import '../services/storage_service.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:file_picker/file_picker.dart';
 import 'main_shell.dart';
 
 class TalkingHeadCreationScreen extends StatefulWidget {
@@ -38,6 +39,9 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
   String? _recordedAudioPath;
   String? _clonedVoiceId;
   bool _isCloning = false;
+  String _creationMode = 'clone';
+  String? _uploadedAudioPath;
+  String? _rawVideoUrl;
 
   AudioRecorder? _audioRecorder;
   DateTime? _recordingStartTime;
@@ -282,7 +286,7 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
       _statusMessage = 'Uploading image...';
     });
 
-    debugPrint('🎬 _generateTalkingHead: _useRecordedVoice=$_useRecordedVoice, _clonedAudioUrl=$_clonedAudioUrl, _clonedVoiceId=$_clonedVoiceId, _recordedAudioPath=$_recordedAudioPath');
+    debugPrint('🎬 _generateTalkingHead: _clonedAudioUrl=$_clonedAudioUrl');
 
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -293,13 +297,9 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
 
       String audioUrl = '';
       if (_clonedAudioUrl != null && _clonedAudioUrl!.isNotEmpty) {
-        // Use the pre-cloned audio from recording time
-        setState(() => _statusMessage = 'Using your cloned voice...');
         audioUrl = _clonedAudioUrl!;
-        debugPrint('✅ Using pre-cloned audio: $audioUrl');
+        debugPrint('✅ Using cloned audio: $audioUrl');
       } else if (_useRecordedVoice && _recordedAudioPath != null) {
-        // Fallback: use the raw recording directly
-        setState(() => _statusMessage = 'Using your recorded voice...');
         final recordedFile = File(_recordedAudioPath!);
         final recordedBytes = await recordedFile.readAsBytes();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -307,42 +307,45 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
         audioUrl = await StorageService.uploadAudioBytes(recordedBytes, audioPath);
       }
 
-      setState(() => _statusMessage = 'Creating talking head video...');
-      final heygen = HeyGenService();
-      final videoId = await heygen.createPhotoTalkingHeadVideo(
+      // Get audio duration
+      int? audioDurationSeconds;
+      try {
+        final durCtrl = VideoPlayerController.networkUrl(Uri.parse(audioUrl));
+        await durCtrl.initialize();
+        audioDurationSeconds = durCtrl.value.duration.inSeconds;
+        await durCtrl.dispose();
+        debugPrint('⏱️ Audio duration: ${audioDurationSeconds}s');
+      } catch (e) {
+        debugPrint('⚠️ Could not get audio duration: $e');
+      }
+
+      // Step 1: Generate video from image using Kling v3 via FAL AI
+      setState(() => _statusMessage = 'Generating video from image...');
+      final fal = FalAiService();
+      final videoUrl = await fal.generateVideoFromImage(
         imageUrl: imageUrl,
-        audioUrl: audioUrl,
+        prompt: 'A person speaking naturally with subtle head movements and natural facial expressions',
+        durationSeconds: audioDurationSeconds,
+      );
+      debugPrint('✅ Video created: $videoUrl');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Video created!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
       );
 
-      setState(() => _statusMessage = 'Processing video... This may take a minute.');
-      String status = 'processing';
-      int attempts = 0;
-      while ((status == 'processing' || status == 'pending') && attempts < 60) {
-        await Future.delayed(const Duration(seconds: 5));
-        attempts++;
-        final statusData = await heygen.getVideoStatus(videoId: videoId);
-        status = statusData['data']?['status'] ?? statusData['status'] ?? 'processing';
-        if (status == 'processing' || status == 'pending') {
-          setState(() => _statusMessage = 'Processing video... ($attempts/60)');
-        }
-      }
+      // Step 2: Lip-sync with audio using Sync Labs
+      setState(() => _statusMessage = 'Syncing lips with audio...');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lip syncing audio...', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.blue.shade700),
+      );
+      final lipSyncedUrl = await _lipSyncVideo(videoUrl, audioUrl);
+      debugPrint('✅ Lip sync done: $lipSyncedUrl');
 
-      if (status == 'completed') {
-        final statusData = await heygen.getVideoStatus(videoId: videoId);
-        final videoDownloadUrl = statusData['data']?['video_url'] ?? statusData['video_url'];
-        if (videoDownloadUrl != null) {
-          setState(() {
-            _videoUrl = videoDownloadUrl;
-            _statusMessage = '';
-            _isGenerating = false;
-          });
-          _initVideoPlayer(videoDownloadUrl);
-        } else {
-          throw Exception('No video URL in completed response');
-        }
-      } else {
-        throw Exception(status == 'failed' ? 'HeyGen video generation failed' : 'Video generation timed out');
-      }
+      setState(() {
+        _videoUrl = lipSyncedUrl;
+        _statusMessage = '';
+        _isGenerating = false;
+      });
+      _initVideoPlayer(lipSyncedUrl);
     } catch (e) {
       if (mounted) {
         setState(() { _isGenerating = false; _statusMessage = ''; });
@@ -383,34 +386,57 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not authenticated');
 
+      // Download video first
+      setState(() => _statusMessage = 'Downloading video...');
+      final response = await http.get(Uri.parse(_videoUrl!)).timeout(
+        const Duration(minutes: 5),
+        onTimeout: () => throw Exception('Download timed out'),
+      );
+      final videoBytes = response.bodyBytes;
+      debugPrint('📥 Downloaded video: ${videoBytes.lengthInBytes / 1024 / 1024} MB');
+
+      // Save to local temp file
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/talking_head_${DateTime.now().millisecondsSinceEpoch}.mp4');
+      await tempFile.writeAsBytes(videoBytes);
+
+      // Always save to Firebase Storage
+      setState(() => _statusMessage = 'Saving to library...');
+      final fileName = 'talking_head_${DateTime.now().millisecondsSinceEpoch}.mp4';
+      final path = 'users/${user.uid}/generatedVideos/$fileName';
+      final savedUrl = await StorageService.uploadVideo(videoBytes, path);
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('library').add({
+        'type': 'video',
+        'url': savedUrl,
+        'source': 'talking_head',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Also save to gallery if checked
       if (_saveToGallery) {
-        await Gal.putVideo(_videoUrl!);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Video saved to gallery!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
-          );
-        }
-      } else {
-        final fileName = 'talking_head_${DateTime.now().millisecondsSinceEpoch}.mp4';
-        final path = 'users/${user.uid}/generatedVideos/$fileName';
-        final savedUrl = await StorageService.downloadAndSaveVideo(_videoUrl!, path);
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('library').add({
-          'type': 'video',
-          'url': savedUrl,
-          'source': 'talking_head',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Video saved to library!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
-          );
+        setState(() => _statusMessage = 'Saving to gallery...');
+        try {
+          await Gal.putVideo(tempFile.path);
+          debugPrint('✅ Saved to gallery');
+        } catch (e) {
+          debugPrint('⚠️ Gallery save failed: $e');
         }
       }
-      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
-    } catch (e) {
+
+      await tempFile.delete();
+      setState(() => _statusMessage = '');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red),
+          SnackBar(content: Text('Video saved!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
+        );
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const MainShell()), (route) => false);
+      }
+    } catch (e) {
+      debugPrint('❌ Save error: $e');
+      if (mounted) {
+        setState(() => _statusMessage = '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -423,6 +449,146 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
     await _videoController!.initialize();
     setState(() {});
     _videoController!.play();
+  }
+
+  Widget _buildModeOption(String mode, String label, IconData icon) {
+    final isSelected = _creationMode == mode;
+    return GestureDetector(
+      onTap: () {
+        if (_isGenerating || _isCloning) return;
+        setState(() { _creationMode = mode; _uploadedAudioPath = null; _rawVideoUrl = null; _videoUrl = null; });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: isSelected ? Border.all(color: AppColors.gold.withValues(alpha: 0.5)) : null,
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: isSelected ? AppColors.gold : AppColors.muted, size: 18),
+          const SizedBox(width: 8),
+          Text(label, style: AppFonts.poppins(size: 13, weight: isSelected ? FontWeight.w600 : FontWeight.w400, color: isSelected ? AppColors.gold : AppColors.muted)),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _pickAudioFromDevice() async {
+    try {
+      final result = await FilePicker.pickFiles(type: FileType.audio);
+      if (result != null && result.files.single.path != null) {
+        setState(() { _uploadedAudioPath = result.files.single.path; _recordedAudioPath = null; });
+        debugPrint('📁 Audio picked: ${result.files.single.name}');
+      }
+    } catch (e) {
+      debugPrint('❌ File picker error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick audio: $e', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _createVideoOnly() async {
+    debugPrint('🎬 _createVideoOnly called');
+    final audioPath = _recordedAudioPath ?? _uploadedAudioPath;
+    debugPrint('📁 audioPath: $audioPath');
+    if (audioPath == null) {
+      debugPrint('⚠️ No audio path - returning');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please record or upload audio first', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    setState(() { _isGenerating = true; _statusMessage = 'Saving audio...'; });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      final audioFile = File(audioPath);
+      final audioBytes = await audioFile.readAsBytes();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final audioUrl = await StorageService.uploadAudioBytes(audioBytes, 'users/${user.uid}/talking_head/recorded_$timestamp.m4a');
+      debugPrint('✅ Audio uploaded: $audioUrl');
+
+      setState(() => _statusMessage = 'Uploading image...');
+      final imageUrl = await _uploadImageToStorage();
+      debugPrint('✅ Image uploaded: $imageUrl');
+
+      int? audioDurationSeconds;
+      try {
+        final durCtrl = VideoPlayerController.networkUrl(Uri.parse(audioUrl));
+        await durCtrl.initialize();
+        audioDurationSeconds = durCtrl.value.duration.inSeconds;
+        await durCtrl.dispose();
+        debugPrint('⏱️ Audio duration: ${audioDurationSeconds}s');
+      } catch (e) { debugPrint('⚠️ Duration error: $e'); }
+
+      setState(() => _statusMessage = 'Generating video from image...');
+
+      final fal = FalAiService();
+      final videoUrl = await fal.generateVideoFromImage(imageUrl: imageUrl, prompt: 'A person speaking naturally with subtle head movements and natural facial expressions', durationSeconds: audioDurationSeconds);
+      debugPrint('✅ Video created: $videoUrl');
+
+      setState(() { _rawVideoUrl = videoUrl; _statusMessage = ''; _isGenerating = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Video created!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)));
+    } catch (e) {
+      debugPrint('❌ Error: $e');
+      if (mounted) { setState(() { _isGenerating = false; _statusMessage = ''; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red)); }
+    }
+  }
+
+  Future<void> _stitchAudio() async {
+    if (_rawVideoUrl == null) return;
+    final audioPath = _recordedAudioPath ?? _uploadedAudioPath;
+    if (audioPath == null) return;
+    setState(() { _isGenerating = true; _statusMessage = 'Lip syncing audio with video...'; });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final audioFile = File(audioPath);
+      final audioBytes = await audioFile.readAsBytes();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final audioUrl = await StorageService.uploadAudioBytes(audioBytes, 'users/${user!.uid}/talking_head/recorded_$timestamp.m4a');
+      final lipSyncedUrl = await _lipSyncVideo(_rawVideoUrl!, audioUrl);
+      setState(() { _videoUrl = lipSyncedUrl; _statusMessage = ''; _isGenerating = false; });
+      _initVideoPlayer(lipSyncedUrl);
+    } catch (e) {
+      debugPrint('❌ Error: $e');
+      if (mounted) { setState(() { _isGenerating = false; _statusMessage = ''; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red)); }
+    }
+  }
+
+  Future<String> _lipSyncVideo(String videoUrl, String audioUrl) async {
+    final remoteConfig = FirebaseRemoteConfig.instance;
+    await remoteConfig.fetchAndActivate();
+    final syncKey = remoteConfig.getString('synclabs_api_key');
+    if (syncKey.isEmpty) throw Exception('Sync Labs API key not configured');
+    debugPrint('🎬 Starting lip sync with Sync Labs...');
+    final response = await http.post(Uri.parse('https://api.sync.so/v2/generate'), headers: {'Content-Type': 'application/json', 'x-api-key': syncKey}, body: jsonEncode({'model': 'sync-3', 'input': [{'type': 'video', 'url': videoUrl}, {'type': 'audio', 'url': audioUrl}], 'options': {'sync_mode': 'loop'}}));
+    if (response.statusCode != 201 && response.statusCode != 200) throw Exception('Sync Labs API error: ${response.statusCode} ${response.body}');
+    final data = jsonDecode(response.body);
+    final generationId = data['id'];
+    if (generationId == null) throw Exception('No generation ID in Sync Labs response');
+    debugPrint('🆔 Sync Labs task submitted! ID: $generationId');
+    String status = data['status'] ?? 'PENDING';
+    int attempts = 0;
+    while (status != 'COMPLETED' && status != 'FAILED' && status != 'REJECTED' && attempts < 60) {
+      await Future.delayed(const Duration(seconds: 5));
+      attempts++;
+      final statusResponse = await http.get(Uri.parse('https://api.sync.so/v2/generate/$generationId'), headers: {'x-api-key': syncKey});
+      if (statusResponse.statusCode == 200) {
+        final statusData = jsonDecode(statusResponse.body);
+        status = statusData['status'] ?? 'PROCESSING';
+        debugPrint('📊 Sync Labs status: $status ($attempts/60)');
+        if (status == 'PROCESSING' || status == 'PENDING') setState(() => _statusMessage = 'Syncing lips... ($attempts/60)');
+      }
+    }
+    if (status == 'COMPLETED') {
+      final finalResponse = await http.get(Uri.parse('https://api.sync.so/v2/generate/$generationId'), headers: {'x-api-key': syncKey});
+      final finalData = jsonDecode(finalResponse.body);
+      final outputUrl = finalData['outputUrl'];
+      if (outputUrl != null) { debugPrint('✅ Lip sync completed: $outputUrl'); return outputUrl; }
+      throw Exception('No output URL in Sync Labs completed response');
+    }
+    throw Exception(status == 'FAILED' ? 'Lip sync failed' : 'Lip sync timed out');
   }
 
   @override
@@ -467,7 +633,30 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
           ),
           const SizedBox(height: 28),
 
-          // PHASE 2: Script + Voice Clone
+          // Mode selector (only before cloning)
+          if (_clonedVoiceId == null) ...[
+          Text('CHOOSE VOICE METHOD', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
+            ),
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              children: [
+                Expanded(child: _buildModeOption('clone', 'Voice Cloning', Icons.record_voice_over)),
+                Expanded(child: _buildModeOption('record', 'Your Voice', Icons.mic)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          ],
+
+          // Mode content
+          if (_creationMode == 'clone') ...[
+          // PHASE 2: Script + Voice Clone (UNCHANGED)
           if (_clonedVoiceId == null) ...[
             // Script input
             Text('YOUR SCRIPT', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
@@ -615,6 +804,26 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
             ),
             const SizedBox(height: 24),
 
+            // Status message (shows during creating video / lip syncing)
+            if (_statusMessage.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
+                ),
+                child: Row(children: [
+                  if (_isGenerating) ...[
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(child: Text(_statusMessage, style: AppFonts.poppins(size: 12, color: AppColors.gold))),
+                ]),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             SizedBox(
               width: double.infinity,
               child: GoldButton(
@@ -623,6 +832,86 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
                 onTap: _isGenerating ? null : _generateTalkingHead,
               ),
             ),
+          ],
+          ] else if (_creationMode == 'record') ...[
+            // Your Voice mode
+            Text('RECORD OR UPLOAD AUDIO', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
+            const SizedBox(height: 8),
+            Text('Record directly or select an audio file from your device.', style: AppFonts.poppins(size: 11, color: AppColors.muted.withValues(alpha: 0.7)), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+
+            // Mic button
+            GestureDetector(
+              onTap: (_isGenerating) ? null : _toggleRecording,
+              child: Container(
+                width: 120, height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isRecording ? Colors.red.withValues(alpha: 0.15) : AppColors.gold.withValues(alpha: 0.1),
+                  border: Border.all(color: _isRecording ? Colors.red : AppColors.gold.withValues(alpha: 0.5), width: _isRecording ? 3 : 1.5),
+                  boxShadow: _isRecording ? [BoxShadow(color: Colors.red.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 2)] : null,
+                ),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(_isRecording ? Icons.stop_rounded : Icons.mic, color: _isRecording ? Colors.red : AppColors.gold, size: 40),
+                  if (_isRecording) ...[const SizedBox(height: 4), ValueListenableBuilder<String>(
+                    valueListenable: _recordingDurationText,
+                    builder: (context, value, _) => Text(value, style: AppFonts.poppins(size: 11, color: Colors.red, weight: FontWeight.w600)),
+                  )],
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_isRecording)
+              Text('Tap to stop recording', style: AppFonts.poppins(size: 11, color: Colors.red.withValues(alpha: 0.7)))
+            else if (_recordedAudioPath != null || _uploadedAudioPath != null)
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.check_circle, color: const Color(0xFF2a5a2a), size: 16),
+                const SizedBox(width: 6),
+                Text('Audio ready!', style: AppFonts.poppins(size: 12, color: const Color(0xFF2a5a2a), weight: FontWeight.w600)),
+              ])
+            else
+              Text('Tap the mic to start recording', style: AppFonts.poppins(size: 11, color: AppColors.muted.withValues(alpha: 0.6))),
+            const SizedBox(height: 16),
+
+            // Upload from device
+            GestureDetector(
+              onTap: (_isGenerating) ? null : _pickAudioFromDevice,
+              child: Container(
+                width: double.infinity, padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.white.withValues(alpha: 0.1), width: 0.5),
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.audio_file_outlined, color: AppColors.muted, size: 20),
+                  const SizedBox(width: 10),
+                  Text('OR SELECT FROM DEVICE', style: AppFonts.poppins(size: 12, color: AppColors.muted)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Status
+            if (_statusMessage.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
+                ),
+                child: Row(children: [
+                  if (_isGenerating) ...[const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)), const SizedBox(width: 12)],
+                  Expanded(child: Text(_statusMessage, style: AppFonts.poppins(size: 12, color: AppColors.gold))),
+                ]),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // Create Video + Lip Sync buttons
+            if (_rawVideoUrl == null && !_isGenerating)
+              SizedBox(width: double.infinity, child: GoldButton(label: 'CREATE VIDEO', onTap: _createVideoOnly)),
+            if (_rawVideoUrl != null && _videoUrl == null && !_isGenerating)
+              SizedBox(width: double.infinity, child: GoldButton(label: 'LIP SYNC', onTap: _stitchAudio)),
           ],
           const SizedBox(height: 16),
 

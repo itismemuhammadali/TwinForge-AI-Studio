@@ -430,22 +430,25 @@ class FalAiService {
   Future<String> generateVideoFromImage({
     required String imageUrl,
     required String prompt,
+    int? durationSeconds,
   }) async {
     try {
       debugLog('🎬 Starting image-to-video generation with face preservation...');
       debugLog('📸 Image: $imageUrl');
       debugLog('✍️ Prompt: $prompt');
+      if (durationSeconds != null) debugLog('⏱️ Duration: ${durationSeconds}s');
 
       if (apiKey.isEmpty) {
         throw Exception('FAL AI API key is empty');
       }
 
-      // Use Kling Video with face reference for better face preservation
-      final url = Uri.parse('https://queue.fal.run/fal-ai/kling-video/v2.1/pro/image-to-video');
+      final url = Uri.parse('https://queue.fal.run/fal-ai/kling-video/v3/pro/image-to-video');
 
       final requestBody = {
         'prompt': prompt,
-        'image_url': imageUrl,
+        'start_image_url': imageUrl,
+        'duration': durationSeconds != null ? durationSeconds.clamp(3, 15).toString() : '10',
+        'generate_audio': false,
       };
 
       debugLog('📤 Submitting image-to-video task with face reference...');

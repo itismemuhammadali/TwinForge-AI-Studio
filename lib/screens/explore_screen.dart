@@ -145,7 +145,7 @@ class ExploreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Join Twinora Community',
+                'Join Twinora University',
                 style: AppFonts.playfair(
                   size: 20,
                   weight: FontWeight.w900,
@@ -250,7 +250,7 @@ class ExploreScreen extends StatelessWidget {
       Row(children: [
         Expanded(child: _card(context, label: 'Talking Head',
             bgColor: const Color(0xFF1a0a1a), accentColor: const Color(0xFFE8A0B4),
-            icon: Icons.record_voice_over_outlined,
+            hasTalkingHead: true,
             onTap: () => _push(context, const TrendingScreen(fromTalkingHead: true, category: 'Talking Head', title: 'Talking Head')))),
         const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'Generate',
@@ -279,7 +279,7 @@ class ExploreScreen extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'Manifestation AI',
             bgColor: const Color(0xFF0a0a1a), accentColor: const Color(0xFF7B68EE),
-            icon: Icons.face_retouching_natural,
+            hasManifestation: true,
             onTap: () => _push(context, const TrendingScreen(fromManifestation: true, category: 'Manifestation', title: 'Manifestation AI')))),
       ]),
       const SizedBox(height: 10),
@@ -294,11 +294,11 @@ class ExploreScreen extends StatelessWidget {
 
   Widget _card(BuildContext context, {
     required String label, required Color bgColor, required Color accentColor,
-    required IconData icon, required VoidCallback onTap,
+    IconData? icon, required VoidCallback onTap,
     bool hasPlay = false, bool hasTextOverlay = false,
     bool hasTrending = false, bool hasBroll = false,
     bool hasCarouselDesc = false, bool hasMagazineDesc = false, bool hasPodcast = false,
-    bool hasGenerate = false, bool hasHoliday = false, double? cardHeight,
+    bool hasGenerate = false, bool hasHoliday = false, bool hasTalkingHead = false, bool hasManifestation = false, double? cardHeight,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -366,6 +366,28 @@ class ExploreScreen extends StatelessWidget {
                   )),
                 ),
               )
+            else if (hasTalkingHead)
+              Image.asset(
+                'assets/images/talking_head_cover.jpeg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
+            else if (hasManifestation)
+              Image.asset(
+                'assets/images/AI_manifestation_cover.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(gradient: RadialGradient(
+                    center: Alignment.topRight, radius: 1.2,
+                    colors: [accentColor.withValues(alpha: 0.18), bgColor],
+                  )),
+                ),
+              )
             else if (hasGenerate)
               Image.asset(
                 'assets/images/generate_cover.jpeg',
@@ -394,7 +416,7 @@ class ExploreScreen extends StatelessWidget {
                 colors: [accentColor.withValues(alpha: 0.18), bgColor],
               ))),
             if (hasTextOverlay) _carouselOverlay(),
-            if (!hasTextOverlay && !hasTrending && !hasBroll && !hasCarouselDesc && !hasMagazineDesc && !hasPodcast && !hasGenerate && !hasHoliday)
+            if (!hasTextOverlay && !hasTrending && !hasBroll && !hasCarouselDesc && !hasMagazineDesc && !hasPodcast && !hasGenerate && !hasHoliday && !hasTalkingHead && !hasManifestation && icon != null)
               Center(child: Icon(icon, color: accentColor.withValues(alpha: 0.3), size: 52)),
             if (hasPlay)
               Center(child: Container(
