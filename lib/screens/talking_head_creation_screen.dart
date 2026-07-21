@@ -74,11 +74,28 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
   Future<void> _initRecorder() async {
     try {
       _audioRecorder ??= AudioRecorder();
+      // Request permission on init - this triggers the iOS permission dialog
       final hasPermission = await _audioRecorder!.hasPermission();
       if (!hasPermission && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Microphone permission is required to record your voice', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-        );
+        // Try to request permission by starting and immediately stopping a recording
+        try {
+          final dir = await getTemporaryDirectory();
+          final path = '${dir.path}/permission_check.m4a';
+          await _audioRecorder!.start(
+            const RecordConfig(
+              encoder: AudioEncoder.aacLc,
+              bitRate: 128000,
+              sampleRate: 44100,
+            ),
+            path: path,
+          );
+          await Future.delayed(const Duration(milliseconds: 100));
+          await _audioRecorder!.stop();
+          // Delete the test file
+          await File(path).delete();
+        } catch (e) {
+          debugPrint('Permission request error: $e');
+        }
       }
     } catch (e) {
       debugPrint('Recorder init error: $e');
@@ -106,19 +123,10 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
 
   Future<void> _startRecording() async {
     try {
-      final hasPermission = await _audioRecorder!.hasPermission();
-      if (!hasPermission) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Microphone permission is required', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-          );
-        }
-        return;
-      }
-
       final dir = await getTemporaryDirectory();
       final path = '${dir.path}/voice_sample.m4a';
 
+      // Try to start recording - this will trigger iOS permission dialog if not granted
       await _audioRecorder!.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
