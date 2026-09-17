@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/stock_image_service.dart';
-
-
+import '../services/storage_service.dart';
+import '../services/fal_ai_service.dart';
+import 'broll_video_review_screen.dart';
 
 class VideoScreen extends StatefulWidget {
   final StockVideo? templateVideo;
@@ -30,6 +32,7 @@ class _FilterOption {
 class _VideoScreenState extends State<VideoScreen> {
   File? _selectedImage;
   bool _hasImage = false;
+  bool _isGenerating = false;
   int _selectedFilter = 0;
   final ImagePicker _imagePicker = ImagePicker();
   VideoPlayerController? _videoController;
@@ -589,37 +592,98 @@ class _VideoScreenState extends State<VideoScreen> {
                       ],
                     ),
                   ),
+                    const SizedBox(height: 24),
+                  ],
+                  if (_isGenerating)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      alignment: Alignment.center,
+                      child: Column(
+                        children: [
+                          const CircularProgressIndicator(color: AppColors.gold),
+                          const SizedBox(height: 12),
+                          Text(
+                            'CREATING AI VIDEO...',
+                            style: AppFonts.poppins(
+                              size: 12,
+                              weight: FontWeight.w700,
+                              color: AppColors.gold,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    GoldButton(
+                      label: 'CREATE VIDEO',
+                      onTap: _createVideo,
+                    ),
                   const SizedBox(height: 24),
                 ],
-                GoldButton(
-                  label: 'CREATE VIDEO',
-                  onTap: () {
-                    if (!_hasImage) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Please upload a photo first',
-                            style: AppFonts.poppins(color: AppColors.white),
-                          ),
-                          backgroundColor: AppColors.surface,
-                        ),
-                      );
-                      return;
-                    }
-
-                    // TODO: Implement video creation with:
-                    // - Selected image (_selectedImage)
-                    // - Selected filter (_filters[_selectedFilter].name)
-                    // - Template video (widget.templateVideo)
-                    // - Custom prompt (_promptController.text)
-                  },
-                ),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+  }
+
+  Future<void> _createVideo() async {
+    if (!_hasImage || _selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please upload a photo first',
+            style: AppFonts.poppins(color: AppColors.white),
+          ),
+          backgroundColor: AppColors.surface,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isGenerating = true);
+
+    try {
+      final templateVideoUrl = widget.templateVideo?.videoUrl ??
+          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? 'anonymous';
+      final fileName = 'video_face_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final faceImageUrl = await StorageService.uploadImage(
+        _selectedImage!,
+        'users/$uid/referenceImages/$fileName',
+      );
+
+      final resultUrl = await FalAiService().generateBRoll(
+        faceImageUrl: faceImageUrl,
+        templateVideoUrl: templateVideoUrl,
+      );
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BrollVideoReviewScreen(
+              videoUrl: resultUrl,
+              durationSeconds: 10,
+              prompt: _promptController.text.trim().isNotEmpty
+                  ? _promptController.text.trim()
+                  : 'AI Video Face Swap (${_filters[_selectedFilter].name} filter)',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate video: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
   }
 }

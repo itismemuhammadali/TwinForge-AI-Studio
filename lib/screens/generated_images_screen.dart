@@ -1,12 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:gal/gal.dart';
+import 'package:path_provider/path_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/gemini_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../models/generated_content.dart';
+import '../utils/permission_helper.dart';
+import 'talking_head_creation_screen.dart';
+import 'ai_video_story_creation_screen.dart';
+import 'trending_screen.dart';
 
 class GeneratedImagesScreen extends StatefulWidget {
   final List<String> generatedImages;
@@ -23,6 +32,9 @@ class GeneratedImagesScreen extends StatefulWidget {
   final String hips;
   final String gender;
   final String aspectRatio;
+  final bool fromTalkingHead;
+  final bool fromBroll;
+  final bool fromCarousel;
 
   const GeneratedImagesScreen({
     super.key,
@@ -40,6 +52,9 @@ class GeneratedImagesScreen extends StatefulWidget {
     this.hips = '',
     this.gender = 'Female',
     this.aspectRatio = 'As in Photo',
+    this.fromTalkingHead = false,
+    this.fromBroll = false,
+    this.fromCarousel = false,
   });
 
   @override
@@ -50,6 +65,46 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
   late PageController _pageController;
   int _currentIndex = 0;
   bool _isSaving = false;
+  bool _saveToGalleryChecked = true;
+
+  Future<void> _saveToGallery() async {
+    try {
+      final imageData = widget.generatedImages[_currentIndex];
+      Uint8List imageBytes;
+
+      if (imageData.startsWith('data:image')) {
+        final base64Str = imageData.split(',')[1];
+        imageBytes = base64Decode(base64Str);
+      } else {
+        final response = await http.get(Uri.parse(imageData));
+        imageBytes = response.bodyBytes;
+      }
+
+      if (!mounted) return;
+      final hasPermission = await PermissionHelper.checkSavePermission(context);
+      if (!hasPermission) return;
+
+      final hasAccess = await Gal.hasAccess();
+      if (!hasAccess) {
+        await Gal.requestAccess();
+      }
+
+      await Gal.putImageBytes(imageBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Image saved to Photo Gallery!',
+                style: AppFonts.poppins(color: AppColors.white)),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ Gal save error: $e');
+    }
+  }
 
   @override
   void initState() {
@@ -124,6 +179,10 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
           .collection('generatedImages')
           .add(docData);
 
+      if (_saveToGalleryChecked) {
+        await _saveToGallery();
+      }
+
       if (mounted) {
         // Show success toast
         ScaffoldMessenger.of(context).showSnackBar(
@@ -156,18 +215,113 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
     }
   }
 
+  Future<void> _turnIntoCarousel() async {
+    try {
+      final currentImageData = widget.generatedImages[_currentIndex];
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/carousel_avatar_${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+      if (currentImageData.startsWith('data:image')) {
+        final base64Str = currentImageData.split(',')[1];
+        final bytes = base64Decode(base64Str);
+        await file.writeAsBytes(bytes);
+      } else {
+        await file.writeAsString(currentImageData);
+      }
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TrendingScreen(
+              fromCarousel: true,
+              category: 'Carousel',
+              title: 'Choose Carousel Template',
+              avatarImageFile: file,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error preparing avatar for carousel: $e',
+                style: AppFonts.poppins(color: AppColors.white)),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   String _buildPrompt() {
     return 'Outfit: ${ widget.outfit}, Location: ${widget.location}, Hairstyle: ${widget.hairstyle}, Makeup: ${widget.makeup}, Angle: ${widget.angle}, Mood: ${widget.mood}';
   }
 
+  Widget _buildSaveToGalleryCheckbox() {
+    return GestureDetector(
+      onTap: () {
+        setState(() => _saveToGalleryChecked = !_saveToGalleryChecked);
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surface.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _saveToGalleryChecked ? AppColors.gold : AppColors.gold.withValues(alpha: 0.3),
+            width: _saveToGalleryChecked ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: _saveToGalleryChecked,
+              activeColor: AppColors.gold,
+              checkColor: AppColors.black,
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _saveToGalleryChecked = val);
+                }
+              },
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                'Save Image to Device Gallery',
+                style: AppFonts.poppins(
+                  size: 12,
+                  weight: FontWeight.w600,
+                  color: AppColors.white,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.photo_library_outlined,
+              color: _saveToGalleryChecked ? AppColors.gold : AppColors.muted,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final displayRatio = widget.fromCarousel ? (9.0 / 16.0) : GeminiService.getDisplayRatio(widget.aspectRatio);
+    final carouselHeight = ((screenWidth - 40) / displayRatio) + 16;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
       appBar: const AimrAppBar(),
       body: SafeArea(
-        child: Column(
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
             // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -206,7 +360,8 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
             ),
 
             // Image Carousel
-            Expanded(
+            SizedBox(
+              height: carouselHeight,
               child: PageView.builder(
                 controller: _pageController,
                 onPageChanged: (index) {
@@ -246,7 +401,7 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
                     try {
                       final base64String = imageData.split(',')[1];
                       final imageBytes = base64Decode(base64String);
-                      final ratio = GeminiService.getDisplayRatio(widget.aspectRatio);
+                      final ratio = widget.fromCarousel ? (9.0 / 16.0) : GeminiService.getDisplayRatio(widget.aspectRatio);
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -257,7 +412,7 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
                               borderRadius: BorderRadius.circular(24),
                               child: Image.memory(
                                 imageBytes,
-                                fit: BoxFit.cover,
+                                fit: widget.fromCarousel ? BoxFit.contain : BoxFit.cover,
                               ),
                             ),
                           ),
@@ -289,49 +444,40 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
                   }
 
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.image,
-                          color: AppColors.gold.withValues(alpha: 0.5),
-                          size: 64,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          imageData,
-                          style: AppFonts.poppins(
-                            size: 16,
-                            color: AppColors.white,
-                            weight: FontWeight.w600,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      child: AspectRatio(
+                        aspectRatio: widget.fromCarousel ? (9.0 / 16.0) : GeminiService.getDisplayRatio(widget.aspectRatio),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.network(
+                            imageData,
+                            fit: widget.fromCarousel ? BoxFit.contain : BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image,
+                                  color: AppColors.gold.withValues(alpha: 0.5),
+                                  size: 64,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Image Preview Available',
+                                  style: AppFonts.poppins(
+                                    size: 16,
+                                    color: AppColors.white,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   );
                 },
-              ),
-            ),
-
-            // Dot Indicators
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  widget.generatedImages.length,
-                  (index) => Container(
-                    width: _currentIndex == index ? 32 : 8,
-                    height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: _currentIndex == index
-                          ? AppColors.gold
-                          : AppColors.gold.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
               ),
             ),
 
@@ -374,6 +520,159 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
                 ),
               ),
             ),
+
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      final currentImage = widget.generatedImages[_currentIndex];
+                      final content = GeneratedContent(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        originalImageUrl: currentImage,
+                        prompt: 'Generated from Image flow',
+                        createdAt: DateTime.now(),
+                        contentType: 'original',
+                        metadata: {
+                          'outfit': widget.outfit,
+                          'location': widget.location,
+                          'hairstyle': widget.hairstyle,
+                          'makeup': widget.makeup,
+                          'angle': widget.angle,
+                        },
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TalkingHeadCreationScreen(content: content),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.gold,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.gold.withValues(alpha: 0.2),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.videocam_outlined, color: AppColors.black, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'TURN INTO TALKING HEAD',
+                              style: AppFonts.poppins(
+                                size: 12,
+                                weight: FontWeight.w900,
+                                color: AppColors.black,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () {
+                      final currentImage = widget.generatedImages[_currentIndex];
+                      final content = GeneratedContent(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        originalImageUrl: currentImage,
+                        prompt: 'Generated from Image flow',
+                        createdAt: DateTime.now(),
+                        contentType: 'original',
+                        metadata: {
+                          'outfit': widget.outfit,
+                          'location': widget.location,
+                          'hairstyle': widget.hairstyle,
+                          'makeup': widget.makeup,
+                          'angle': widget.angle,
+                        },
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AiVideoStoryCreationScreen(content: content),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        border: Border.all(color: AppColors.gold, width: 2),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.movie_creation_outlined, color: AppColors.gold, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'TURN INTO B-ROLL',
+                              style: AppFonts.poppins(
+                                size: 12,
+                                weight: FontWeight.w900,
+                                color: AppColors.gold,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!widget.fromCarousel) ...[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _turnIntoCarousel,
+                      child: Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.15),
+                          border: Border.all(color: AppColors.gold, width: 2),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.view_carousel_outlined, color: AppColors.gold, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'TURN INTO CAROUSEL',
+                                style: AppFonts.poppins(
+                                  size: 12,
+                                  weight: FontWeight.w900,
+                                  color: AppColors.gold,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Save to Gallery Checkbox Option (placed right above bottom action buttons)
+            _buildSaveToGalleryCheckbox(),
 
             // Action Buttons
             Padding(
@@ -452,6 +751,7 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

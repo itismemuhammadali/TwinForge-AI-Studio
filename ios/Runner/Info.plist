@@ -26,6 +26,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires access to your camera to take photos for content generation.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app requires access to your microphone to record voice samples for talking head videos.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>This app requires access to your media library to select audio files for video generation.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app requires permission to save your generated AI photos to your photo gallery.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app requires access to your photo library to upload and manage images.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -66,11 +76,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app requires access to your photo library to upload and manage images.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>This app requires access to your camera to take photos for content generation.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app requires access to your microphone to record voice samples for talking head videos.</string>
 </dict>
 </plist>

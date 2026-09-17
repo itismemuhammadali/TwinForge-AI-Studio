@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
@@ -10,6 +8,9 @@ import '../widgets/custom_dropdown.dart';
 import '../constants/generation_options.dart';
 import '../services/gemini_service.dart';
 import '../providers/user_provider.dart';
+import '../utils/permission_helper.dart';
+import '../services/credit_service.dart';
+import '../models/credit_config.dart';
 import 'generated_images_screen.dart';
 
 class GenerateScreenV2 extends StatefulWidget {
@@ -40,6 +41,7 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
   String _waist = GenerationOptions.waistSizes[0];
   String _hips = GenerationOptions.hipsSizes[0];
   String _aspectRatio = GenerationOptions.aspectRatios[0];
+
 
   @override
   void initState() {
@@ -124,19 +126,33 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
       builder: (BuildContext context) {
         return ImageSourceBottomSheet(
           onSourceSelected: (source) async {
-            final picker = ImagePicker();
-            final pickedFile = await picker.pickImage(
-              source: source,
-              imageQuality: 90,
-            );
-            if (pickedFile != null) {
-              setState(() => _selectedImage = File(pickedFile.path));
+            final currentContext = context;
+            final granted = await PermissionHelper.checkImagePermission(currentContext, source);
+            if (!granted) return;
+
+            try {
+              final picker = ImagePicker();
+              final pickedFile = await picker.pickImage(
+                source: source,
+                maxWidth: 1440,
+                maxHeight: 1920,
+                imageQuality: 85,
+              );
+              if (pickedFile != null && mounted) {
+                setState(() => _selectedImage = File(pickedFile.path));
+              }
+            } catch (e) {
+              if (currentContext.mounted) {
+                PermissionHelper.handlePermissionError(currentContext, e, source);
+              }
             }
           },
         );
       },
     );
   }
+
+
 
   Future<void> _generateImages() async {
     if (_selectedImage == null) {
@@ -151,6 +167,14 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
       );
       return;
     }
+
+    final totalRequiredCredits = _numberOfImages * CreditConfig.geminiImageCredits;
+    final hasCredits = await CreditService.ensureSufficientCredits(
+      context,
+      requiredCredits: totalRequiredCredits,
+      featureName: 'Image Generation',
+    );
+    if (!hasCredits) return;
 
     setState(() => _isGenerating = true);
 
@@ -174,34 +198,43 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
         propEnhancers: _propEnhancersCtrl.text,
       );
 
-      // Count successful images (not errors)
-      final successCount = generatedImages.where((img) => img != 'error').length;
+      // Filter successful images (exclude errors)
+      final validImages = generatedImages.where((img) => img != 'error' && img.isNotEmpty).toList();
 
-      // Deduct credits in Firestore
-      if (successCount > 0) {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .update({
-            'credits': FieldValue.increment(-successCount),
-            'imagesUsedToday': FieldValue.increment(successCount),
-            'usageDate': DateTime.now().toIso8601String().split('T')[0],
-          });
-          if (mounted) {
-            context.read<UserProvider>().refreshCredits();
-          }
+      if (validImages.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Image generation could not be completed. Please try again.',
+                style: AppFonts.poppins(color: AppColors.white),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
+        return;
+      }
+
+      // Deduct credits safely in Firestore (guaranteed to never go below 0)
+      if (mounted) {
+        final creditsDeducted = validImages.length * CreditConfig.geminiImageCredits;
+        await CreditService.deductCredits(
+          context: context,
+          creditsToDeduct: creditsDeducted,
+          feature: 'gemini_image',
+          estimatedUsdCost: CreditConfig.estimateGeminiCostUsd('Gemini 3.1 Flash', _aspectRatio) * validImages.length,
+          provider: 'Gemini',
+        );
       }
 
       if (mounted) {
-        // Navigate to generated images screen
+        // Navigate to generated images screen with valid images
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => GeneratedImagesScreen(
-              generatedImages: generatedImages,
+              generatedImages: validImages,
               outfit: _outfit,
               location: _location,
               hairstyle: _hairstyle,
@@ -407,7 +440,6 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
                 onTap: _pickImage,
                 child: Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(minHeight: 200, maxHeight: 350),
                   decoration: BoxDecoration(
                     color: AppColors.surface.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(24),
@@ -420,7 +452,7 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(24),
                           child: Stack(
-                            fit: StackFit.expand,
+                            alignment: Alignment.center,
                             children: [
                               Image.file(
                                 _selectedImage!,
@@ -470,10 +502,12 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
                             ],
                           ),
                         )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
                               width: 80,
                               height: 80,
                               decoration: BoxDecoration(
@@ -510,6 +544,7 @@ class _GenerateScreenV2State extends State<GenerateScreenV2> {
                             ),
                           ],
                         ),
+                      ),
                 ),
               ),
 

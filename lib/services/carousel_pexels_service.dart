@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 class CarouselPexelsService {
-  static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+  static final FirebaseRemoteConfig _remoteConfig =
+      FirebaseRemoteConfig.instance;
   static late String _pexelsApiKey;
   static bool _initialized = false;
 
@@ -64,10 +65,7 @@ class CarouselPexelsService {
 
       // Use a shorter timeout for Pexels API
       final response = await http
-          .get(
-            url,
-            headers: {'Authorization': _pexelsApiKey},
-          )
+          .get(url, headers: {'Authorization': _pexelsApiKey})
           .timeout(
             const Duration(seconds: 15),
             onTimeout: () {
@@ -84,7 +82,7 @@ class CarouselPexelsService {
 
         if (photos.isEmpty) {
           debugLog('⚠️ No photos found, trying fallback query...');
-          return _fetchFallbackImages();
+          return await _fetchFallbackImages();
         }
 
         // Extract image URLs (get exactly 5)
@@ -101,15 +99,16 @@ class CarouselPexelsService {
 
         if (imageUrls.length < 5) {
           debugLog(
-              '⚠️ Only got ${imageUrls.length} images, trying fallback...');
-          return _fetchFallbackImages();
+            '⚠️ Only got ${imageUrls.length} images, trying fallback...',
+          );
+          return await _fetchFallbackImages();
         }
 
         debugLog('✅ Fetched exactly 5 carousel images');
         return imageUrls;
       } else {
         debugLog('❌ Pexels API error ${response.statusCode}');
-        return _fetchFallbackImages();
+        return await _fetchFallbackImages();
       }
     } catch (e) {
       debugLog('❌ Error fetching images: $e');
@@ -159,10 +158,7 @@ class CarouselPexelsService {
       debugLog('🔗 Calling fallback: $url');
 
       final response = await http
-          .get(
-            url,
-            headers: {'Authorization': _pexelsApiKey},
-          )
+          .get(url, headers: {'Authorization': _pexelsApiKey})
           .timeout(
             const Duration(seconds: 15),
             onTimeout: () {
@@ -185,8 +181,7 @@ class CarouselPexelsService {
             .where((url) => url.isNotEmpty)
             .toList();
 
-        debugLog(
-            '✅ Fallback fetch got ${imageUrls.length} images');
+        debugLog('✅ Fallback fetch got ${imageUrls.length} images');
         return imageUrls.isNotEmpty ? imageUrls : _getMockImages();
       } else {
         debugLog('⚠️ Fallback also failed, using mock images');
@@ -217,4 +212,3 @@ class TimeoutException implements Exception {
   @override
   String toString() => message;
 }
-

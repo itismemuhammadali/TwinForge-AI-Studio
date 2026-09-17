@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
-import 'talking_head_screen.dart';
+import 'talking_heads/talking_head_image_review_screen.dart';
 
 class MagazineReviewScreen extends StatefulWidget {
   final String generatedImage;
@@ -114,14 +114,14 @@ class _MagazineReviewScreenState extends State<MagazineReviewScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
@@ -158,7 +158,6 @@ class _MagazineReviewScreenState extends State<MagazineReviewScreen> {
                 ),
               ),
             ),
-          ),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
             decoration: BoxDecoration(
@@ -264,7 +263,7 @@ class _MagazineReviewScreenState extends State<MagazineReviewScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const TalkingHeadScreen(),
+                        builder: (_) => const TalkingHeadImageReviewScreen(imageSource: 'file', imageData: null),
                       ),
                     );
                   },
@@ -298,7 +297,8 @@ class _MagazineReviewScreenState extends State<MagazineReviewScreen> {
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

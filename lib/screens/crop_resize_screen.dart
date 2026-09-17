@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -243,7 +242,7 @@ class _CropResizeScreenState extends State<CropResizeScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.black26, width: 1),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
                 ],
               ),
             ),
@@ -269,7 +268,7 @@ class CropOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withOpacity(0.7);
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.7);
     
     // Draw the dimmed area around the crop rect
     final path = Path()

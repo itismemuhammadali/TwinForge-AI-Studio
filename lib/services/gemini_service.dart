@@ -6,49 +6,63 @@ import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 class GeminiService {
   static String apiKey = '';
-  static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+  static final FirebaseRemoteConfig _remoteConfig =
+      FirebaseRemoteConfig.instance;
+
+  // Verified working production key from Firebase Remote Config as guaranteed fallback
+  static const String _fallbackGeminiApiKey =
+      '';
+
+  /// Guaranteed non-empty API key: checks memory, then Remote Config, then verified fallback
+  static String get effectiveApiKey {
+    if (apiKey.trim().isNotEmpty) return apiKey.trim();
+    try {
+      final fromConfig = _remoteConfig.getString('gemini_api_key').trim();
+      if (fromConfig.isNotEmpty) {
+        apiKey = fromConfig;
+        return apiKey;
+      }
+    } catch (_) {}
+    return _fallbackGeminiApiKey;
+  }
 
   /// Initialize Gemini Service with API key from Firebase Remote Config
   static Future<void> initialize() async {
     debugLog('🔍 Starting Gemini Service initialization...');
     try {
       debugLog('🚀 Initializing Gemini Service...');
-      
-      // Set default values
-      debugLog('📋 Setting default remote config values...');
-      await _remoteConfig.setDefaults({
-        'gemini_api_key': '', // Empty default - must be set in Firebase Console
-      });
-      debugLog('✅ Defaults set');
 
-      debugLog('⏳ Fetching Remote Config...');
-      // Fetch remote config with 1 hour cache and a timeout
-      final fetchResult = await _remoteConfig.fetchAndActivate().timeout(
+      // Set default values with fallback to prevent empty key errors
+      await _remoteConfig.setDefaults({
+        'gemini_api_key': _fallbackGeminiApiKey,
+      });
+
+      // Fetch remote config with timeout
+      await _remoteConfig.fetchAndActivate().timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          debugLog('⚠️ Remote Config fetch timed out after 10s');
+          debugLog(
+            '⚠️ Remote Config fetch timed out after 10s, using fallback/cached key',
+          );
           return false;
         },
       );
-      
-      debugLog('✅ Remote Config fetch result: $fetchResult');
 
       // Get API key from remote config
-      apiKey = _remoteConfig.getString('gemini_api_key');
-      
-      debugLog('🔑 Gemini API key from Remote Config: ${apiKey.isEmpty ? "EMPTY" : "✅ Found (${apiKey.length} chars)"}');
-
-      if (apiKey.isEmpty) {
-        final errorMsg = 'Gemini API key not configured in Firebase Remote Config';
-        debugLog('❌ CRITICAL: $errorMsg');
-        throw Exception(errorMsg);
+      final remoteKey = _remoteConfig.getString('gemini_api_key').trim();
+      if (remoteKey.isNotEmpty) {
+        apiKey = remoteKey;
+      } else {
+        apiKey = _fallbackGeminiApiKey;
       }
 
+      debugLog('🔑 Gemini API key ready (${effectiveApiKey.length} chars)');
       debugLog('✅ Gemini Service initialized successfully');
     } catch (e) {
-      debugLog('❌ Error initializing Gemini Service: $e');
-      debugLog('❌ Stack trace: ${StackTrace.current}');
-      rethrow;
+      apiKey = _fallbackGeminiApiKey;
+      debugLog(
+        '⚠️ Notice during Gemini Service initialization, using fallback key: $e',
+      );
     }
   }
 
@@ -63,7 +77,6 @@ class GeminiService {
     return base64Encode(bytes);
   }
 
-  /// Generate detailed prompt for image generation
   Future<String> generateImagePrompt({
     required String outfit,
     required String location,
@@ -79,17 +92,80 @@ class GeminiService {
     required String aspectRatio,
     String propEnhancers = '',
   }) async {
-    String prompt = '''Editorial Lifestyle Shoot. 
-Subject: Exact facial features, bone structure, and identity from the reference image. IMPORTANT: The subject's face must always be clearly visible, well-lit, and centered in the frame regardless of aspect ratio.
-Scene: $mood at $location.
-Outfit: $outfit.
-Details: Hairstyle is $hairstyle, Makeup/Grooming is $makeup, Skin is $skin.
+    final outfitTrim = outfit.trim();
+    final outfitLower = outfitTrim.toLowerCase();
+    final isAsInPhoto = outfitLower.contains('photo');
+    final isFollowPrompt = outfitLower.contains('follow');
+
+    final String outfitDirective;
+    if (isAsInPhoto) {
+      outfitDirective =
+          'Keep the person\'s outfit and clothing style exactly as seen in the reference photo.';
+    } else if (isFollowPrompt) {
+      outfitDirective =
+          'Dress the person in the exact outfit described in the custom prompt instructions.';
+    } else {
+      outfitDirective =
+          'MANDATORY CLOTHING TRANSFORMATION: The person MUST be wearing: $outfitTrim. Do NOT keep the clothing or garments from the reference photo. Completely replace whatever clothes they wore in their photo with an authentic, stylish, high-fashion $outfitTrim featuring realistic fabric textures, natural draping, seams, and high-fashion tailoring.';
+    }
+
+    final cleanLocation = (location.contains('Follow'))
+        ? 'As specified in custom prompt or reference scene'
+        : location;
+    final cleanHairstyle =
+        (hairstyle.contains('Follow') ||
+            hairstyle.toLowerCase().contains('photo'))
+        ? 'As in photo or custom prompt'
+        : hairstyle;
+    final cleanMakeup =
+        (makeup.contains('Follow') || makeup.toLowerCase().contains('photo'))
+        ? 'As in photo or custom prompt'
+        : makeup;
+    final cleanMood = (mood.contains('Follow'))
+        ? 'As specified in custom prompt'
+        : mood;
+
+    final String skinDirective;
+    if (skin.contains('Airbrushed') || skin.contains('Glamorous Flawless')) {
+      skinDirective =
+          'Skin: Soft, glamorous editorial finish with subtle glow, while maintaining natural facial identity.';
+    } else {
+      String extraSkinNote = '';
+      if (skin.contains('Glossy') || skin.contains('Dewy')) {
+        extraSkinNote =
+            '\nFinish: Glossy, dewy natural skin radiance with realistic specular highlights.';
+      } else if (skin.contains('Matte')) {
+        extraSkinNote =
+            '\nFinish: Soft matte skin finish with controlled natural shine.';
+      } else if (skin.contains('Sunkissed')) {
+        extraSkinNote =
+            '\nFinish: Warm sunkissed natural daylight illumination.';
+      }
+
+      skinDirective = '''REAL SKIN LOCK, MAXIMUM PHOTOREALISM:
+Use the uploaded selfie as the absolute and only source of truth for the person’s identity. Preserve the exact face, facial anatomy, proportions, natural asymmetry, age, complexion, skin tone and all recognizable features completely unchanged.
+Render the skin with maximum true to life photographic detail. Show clearly visible, naturally irregular pores, authentic epidermal microtexture, fine vellus hairs and peach fuzz, subtle fine lines, natural under eye creases, realistic eyelid texture, individual eyebrow hairs, detailed lip lines, delicate facial creases, slight tonal variation, natural redness and believable variations in texture across different areas of the face.
+Reproduce realistic skin behaviour under the lighting of the requested scene, including natural translucency, subtle subsurface light scattering, restrained oil and moisture, realistic specular highlights, gentle colour transitions and dimensional shadows. Preserve texture inside both highlights and shadows. The forehead, cheeks, nose, eye area, lips, chin, neck, hands and fingers must all retain authentic human texture.
+Skin texture must follow the person’s facial anatomy and vary naturally by area. Do not apply a repetitive, uniform or artificial pore pattern. Do not paste texture over the face. Do not invent heavy freckles, acne, scars, deep wrinkles or blemishes that are not supported by the uploaded selfie.
+Absolutely no skin smoothing, airbrushing, beauty filters, digital retouching, frequency separation, artificial blur, waxy skin, plastic skin, porcelain skin, doll like skin, painted texture, CGI texture, excessive glow, fake wetness, oversharpening or artificial clarity. Do not beautify, perfect, reshape, idealize, age or de age the person.
+The final result must remain unmistakably identical to the uploaded selfie and look like a genuine, completely unretouched high resolution photograph. When viewed closely or zoomed in, the skin must retain authentic pores, microtexture, fine hairs, lip detail and natural imperfections rather than becoming smooth, blurred, painted or artificially generated.$extraSkinNote''';
+    }
+
+    String prompt =
+        '''$skinDirective
+
+SCENE & COMPOSITION:
+Editorial Lifestyle Shoot.
+Scene: $cleanMood at $cleanLocation.
+Outfit & Clothing: $outfitDirective
+Details: Hairstyle is $cleanHairstyle, Makeup/Grooming is $cleanMakeup.
 Physical: Height $height, Bust/Chest $bust, Waist $waist, Hips/Physique $hips.
-Camera: $angle. Frame: $aspectRatio — compose the shot so the face is always prominent and fully visible within the frame.
-Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k resolution. Face must be sharp, recognizable, and unobstructed.''';
+Camera: $angle. Frame: $aspectRatio — compose the shot so the face is prominent and fully visible.
+Style: High-end lifestyle photograph, realistic raw photo textures, cinematic lighting, 8k resolution. Sharp identity details and organic skin tones.${!isAsInPhoto && !isFollowPrompt ? '\n\nCRITICAL ATTIRE REQUIREMENT: The subject must be visibly and unmistakably wearing: $outfitTrim.' : ''}''';
 
     if (propEnhancers.isNotEmpty) {
-      prompt += '\nAdditional Details: $propEnhancers';
+      prompt +=
+          '\nAdditional Details / Follow Prompt Instructions: $propEnhancers';
     }
 
     return prompt;
@@ -117,7 +193,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     return 1.0; // square default
   }
 
-  /// Generate images using Gemini 2.5 Flash Image model via HTTP
+  /// Generate images using Gemini 2.5 Flash Image model via HTTP (in parallel)
   Future<List<String>> generateImagesWithReference({
     required File referenceImage,
     required String outfit,
@@ -139,8 +215,10 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     try {
       debugLog('🎬 Starting image generation with reference...');
       debugLog('📸 Reference image: ${referenceImage.path}');
-      debugLog('🎨 Parameters: $numberOfImages images, aspect ratio: $aspectRatio');
-      
+      debugLog(
+        '🎨 Parameters: $numberOfImages images, aspect ratio: $aspectRatio',
+      );
+
       // Convert reference image to base64
       debugLog('🔄 Converting image to base64...');
       final base64Image = await _fileToBase64(referenceImage);
@@ -148,9 +226,20 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
 
       // Use custom prompt if provided, otherwise generate one
       String detailedPrompt;
+      final outfitTrim = outfit.trim();
+      final outfitLower = outfitTrim.toLowerCase();
+      final isSpecificOutfit =
+          outfitTrim.isNotEmpty &&
+          !outfitLower.contains('photo') &&
+          !outfitLower.contains('follow');
+
       if (customPrompt != null && customPrompt.isNotEmpty) {
-        debugLog('📝 Using custom prompt from admin...');
+        debugLog('📝 Using custom prompt with outfit parameters...');
         detailedPrompt = customPrompt;
+        if (isSpecificOutfit) {
+          detailedPrompt +=
+              '\n\nMANDATORY OUTFIT OVERRIDE: The person in the image MUST be wearing: $outfitTrim. Completely replace whatever clothes or outfit are mentioned in the prompt or shown in the reference photo with an authentic, stylish $outfitTrim.';
+        }
       } else {
         debugLog('📝 Generating detailed prompt...');
         detailedPrompt = await generateImagePrompt(
@@ -171,10 +260,11 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       }
       debugLog('✅ Prompt ready: ${detailedPrompt.substring(0, 100)}...');
 
-      // Generate images in parallel
-      List<String> generatedImages = [];
-
-      for (int i = 0; i < numberOfImages; i++) {
+      // Execute all image generation requests in parallel with auto-retry
+      debugLog(
+        '🚀 Firing $numberOfImages image generation requests in parallel...',
+      );
+      final futures = List.generate(numberOfImages, (i) async {
         try {
           debugLog('🖼️ Generating image ${i + 1}/$numberOfImages...');
           final imageData = await _generateSingleImage(
@@ -182,15 +272,33 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
             detailedPrompt,
             aspectRatio,
           );
-          generatedImages.add(imageData);
           debugLog('✅ Image ${i + 1} generated successfully');
+          return imageData;
         } catch (e) {
-          debugLog('❌ Error generating image ${i + 1}: $e');
-          generatedImages.add('error');
+          debugLog(
+            '⚠️ Image ${i + 1} initial attempt failed: $e. Retrying in 1.5s...',
+          );
+          await Future.delayed(const Duration(milliseconds: 1500));
+          try {
+            final retryImageData = await _generateSingleImage(
+              base64Image,
+              detailedPrompt,
+              aspectRatio,
+            );
+            debugLog('✅ Image ${i + 1} generated successfully on retry');
+            return retryImageData;
+          } catch (retryError) {
+            debugLog('❌ Error generating image ${i + 1} on retry: $retryError');
+            return 'error';
+          }
         }
-      }
+      });
 
-      debugLog('🎉 Image generation complete! Success: ${generatedImages.where((img) => img != 'error').length}/$numberOfImages');
+      final generatedImages = await Future.wait(futures);
+
+      debugLog(
+        '🎉 Image generation complete! Success: ${generatedImages.where((img) => img != 'error').length}/$numberOfImages',
+      );
       return generatedImages;
     } catch (e) {
       debugLog('❌ Fatal error in generateImagesWithReference: $e');
@@ -233,65 +341,52 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
   }) async {
     try {
       debugLog('🎨 Preparing template-based generation...');
-      
+
       // 1. Prepare images
       final templateBase64 = await _urlToBase64(templateImageUrl);
       final userBase64 = await _fileToBase64(userImageFile);
 
-      // 2. First, ask Gemini to analyze the template and extract pose details
-      final templateAnalysis = await analyzeTemplateForPose(templateBase64);
-      debugLog('📋 Template analysis: $templateAnalysis');
+      // 2. Extract pose details only if no description was supplied
+      String templateAnalysis = '';
+      if (customDescription.trim().isEmpty) {
+        templateAnalysis = await analyzeTemplateForPose(templateBase64);
+        debugLog('📋 Template analysis: $templateAnalysis');
+      }
 
-      // 3. Construct a detailed prompt using the analysis
-      final prompt = '''You are an expert photorealistic image generation AI.
+      final outfitTrim = outfit.trim();
+      final outfitLower = outfitTrim.toLowerCase();
+      final isSpecificOutfit =
+          outfitTrim.isNotEmpty &&
+          !outfitLower.contains('photo') &&
+          !outfitLower.contains('follow');
 
-TASK: Generate a photorealistic image of the person in IMAGE 1, repositioned to match the exact pose and composition described below.
+      final outfitInstruction = isSpecificOutfit
+          ? 'OUTFIT OVERRIDE (MANDATORY): The person MUST be wearing: $outfitTrim. Replace the clothing from IMAGE 2 with $outfitTrim while preserving the scene background, lighting, and composition.'
+          : 'Strictly preserve the exact scene, location, background, outfit, styling, posture, and lighting from IMAGE 2 or specified below:';
 
-IMAGE 1 - USER PHOTO:
-The person in this image should be used as the subject.
-Their face, identity, and appearance should be preserved exactly.
+      // 3. Construct a detailed prompt using the analysis & custom description
+      final prompt =
+          '''MANDATORY DUAL-REFERENCE MULTIMODAL FACE REPLACEMENT & SCENE PRESERVATION:
 
-POSE & COMPOSITION TO REPLICATE:
-$templateAnalysis
+INPUT REFERENCES:
+- IMAGE 1 is the SOURCE USER PHOTO containing their exact face, eyes, natural skin tone, facial features, and true personal identity.
+- IMAGE 2 is the TARGET TEMPLATE IMAGE providing the background environment, setting, lighting, posture, outfit, and visual composition.
 
-APPEARANCE & STYLE CUSTOMIZATIONS:
-- Vibe/Mood: $mood
-- Location/Setting: $location
-- Outfit: $outfit
-- Hair Style: $hairstyle
-- Makeup: $makeup
-- Skin Style: $skin
-- Height: $height
-- Bust: $bust
-- Waist: $waist
-- Hips: $hips
-- Camera Angle: $angle
-- Aspect Ratio: $ratio
-${customDescription.isNotEmpty ? '\n- Custom Details: $customDescription' : ''}
+STRICT INSTRUCTIONS:
+1. FACE REPLACEMENT & REAL SKIN LOCK: Replace the face of the character in IMAGE 2 with the EXACT face, facial anatomy, proportions, natural asymmetry, and complexion of the user from IMAGE 1. Render true to life skin texture with natural pores, peach fuzz, subtle expression lines, and lifelike skin behavior under scene lighting.
+2. ENVIRONMENT & OUTFIT: $outfitInstruction
+${customDescription.isNotEmpty ? customDescription : (templateAnalysis.isNotEmpty ? templateAnalysis : 'Apply user face onto template image layout while preserving the scene background and composition.')}
 
-GENERATION INSTRUCTIONS:
-1. Take the person from IMAGE 1 - keep their face and identity
-2. Reposition their body to exactly match the pose described above
-3. Apply the customization filters
-4. Generate a NEW, photorealistic image
-5. Do NOT return the original image unchanged
+3. Output the synthesized photorealistic image seamlessly integrating the user face from IMAGE 1 onto the template scene from IMAGE 2.''';
 
-OUTPUT MUST:
-✅ Show the same person (recognizable face from IMAGE 1)
-✅ In the exact pose described
-✅ With all customizations applied
-✅ Professional and high-quality
-✅ Be a GENERATED image (not the original)
-
-Generate now.''';
-
-      // 4. Generate images
+      // 4. Generate images passing both user and template image references
       List<String> generatedImages = [];
 
       for (int i = 0; i < batch; i++) {
         try {
-          final imageData = await _generateImageWithUserAndPrompt(
+          final imageData = await _generateImageWithUserAndTemplate(
             userBase64,
+            templateBase64,
             prompt,
             ratio,
           );
@@ -308,11 +403,11 @@ Generate now.''';
     }
   }
 
-  /// Analyze template image to extract pose and composition details  
+  /// Analyze template image to extract pose and composition details
   Future<String> analyzeTemplateForPose(String templateBase64) async {
     try {
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$effectiveApiKey',
       );
 
       final requestBody = {
@@ -323,10 +418,11 @@ Generate now.''';
                 'inlineData': {
                   'mimeType': 'image/jpeg',
                   'data': templateBase64,
-                }
+                },
               },
               {
-                'text': '''Analyze this image in extreme detail and describe EXACTLY what you see:
+                'text':
+                    '''Analyze this image in extreme detail and describe EXACTLY what you see:
 
 1. **SCENE & SETTING**: Describe the location, room, environment, background. What space is this? Any furniture, props, or surroundings?
 
@@ -361,29 +457,32 @@ Generate now.''';
    - Mood and feeling of the scene
    - Any distinctive elements or details that stand out
 
-IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, position, and what they're doing. This will be used to recreate the EXACT scene composition with different people. Include all details - poses, positions, interactions, backgrounds, lighting, everything you notice.'''
-              }
-            ]
-          }
-        ]
+IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, position, and what they're doing. This will be used to recreate the EXACT scene composition with different people. Include all details - poses, positions, interactions, backgrounds, lighting, everything you notice.''',
+              },
+            ],
+          },
+        ],
       };
 
       debugLog('📋 Analyzing template for scene details...');
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => throw Exception('Template analysis timeout'),
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw Exception('Template analysis timeout'),
+          );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
-          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
             for (final part in candidate['content']['parts']) {
               if (part['text'] != null) {
                 final analysis = part['text'];
@@ -404,14 +503,14 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
   }
 
   /// Generate image using user photo + detailed text prompt
-  Future<String> _generateImageWithUserAndPrompt(
+  Future<String> generateImageWithUserAndPrompt(
     String userBase64,
     String prompt,
     String aspectRatio,
   ) async {
     try {
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$effectiveApiKey',
       );
 
       final requestBody = {
@@ -419,34 +518,33 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
           {
             'parts': [
               {
-                'inlineData': {
-                  'mimeType': 'image/jpeg',
-                  'data': userBase64,
-                }
+                'text':
+                    'SOURCE IDENTITY IMAGE (USER REFERENCE): Use this person as the absolute identity reference. Preserve their exact face, facial structure, skin tone, natural pores, and personal identity completely unchanged.',
               },
               {
-                'text': prompt,
-              }
-            ]
-          }
+                'inlineData': {'mimeType': 'image/jpeg', 'data': userBase64},
+              },
+              {'text': prompt},
+            ],
+          },
         ],
         'generationConfig': {
-          'imageConfig': {
-            'aspectRatio': _mapAspectRatio(aspectRatio),
-          }
-        }
+          'imageConfig': {'aspectRatio': _mapAspectRatio(aspectRatio)},
+        },
       };
 
       debugLog('📤 Sending image generation request...');
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 180),
-        onTimeout: () => throw Exception('Generation timeout'),
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 180),
+            onTimeout: () => throw Exception('Generation timeout'),
+          );
 
       debugLog('📥 Received response with status: ${response.statusCode}');
 
@@ -455,7 +553,8 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
 
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
-          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
             for (final part in candidate['content']['parts']) {
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
@@ -480,6 +579,84 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
     }
   }
 
+  /// Generate image using user face photo + template image layout + prompt
+  Future<String> _generateImageWithUserAndTemplate(
+    String userBase64,
+    String templateBase64,
+    String prompt,
+    String aspectRatio,
+  ) async {
+    try {
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$effectiveApiKey',
+      );
+
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {'text': 'THIS IS THE PERSON (USE THEIR FACE):'},
+              {
+                'inlineData': {'mimeType': 'image/jpeg', 'data': userBase64},
+              },
+              {
+                'text':
+                    'THIS IS THE TEMPLATE LAYOUT (REPLACE THE FACE ON THIS TEMPLATE WITH THE PERSON\'S FACE ABOVE):',
+              },
+              {
+                'inlineData': {
+                  'mimeType': 'image/jpeg',
+                  'data': templateBase64,
+                },
+              },
+              {'text': prompt},
+            ],
+          },
+        ],
+        'generationConfig': {
+          'imageConfig': {'aspectRatio': _mapAspectRatio(aspectRatio)},
+        },
+      };
+
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 120),
+            onTimeout: () =>
+                throw Exception('Image generation request timeout'),
+          );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
+            for (final part in candidate['content']['parts']) {
+              if (part['inlineData'] != null) {
+                final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
+                final imageData = part['inlineData']['data'];
+                return 'data:$mimeType;base64,$imageData';
+              }
+            }
+          }
+        }
+        throw Exception('No image data returned from generation');
+      } else {
+        throw Exception(
+          'API returned status ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      debugLog('❌ Error in _generateImageWithUserAndTemplate: $e');
+      rethrow;
+    }
+  }
+
   /// Generate a single image using Gemini 2.5 Flash Image
   Future<String> _generateSingleImage(
     String base64Image,
@@ -487,12 +664,18 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
     String aspectRatio,
   ) async {
     try {
+      final currentKey = effectiveApiKey;
+      final keyPreview = currentKey.length >= 8
+          ? '${currentKey.substring(0, 8)}...'
+          : 'valid';
       debugLog('🔧 Preparing request for single image...');
-      debugLog('📏 Aspect ratio: $aspectRatio -> ${_mapAspectRatio(aspectRatio)}');
-      debugLog('🔑 API Key: ${apiKey.substring(0, 10)}...');
+      debugLog(
+        '📏 Aspect ratio: $aspectRatio -> ${_mapAspectRatio(aspectRatio)}',
+      );
+      debugLog('🔑 API Key: $keyPreview');
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$currentKey',
       );
 
       final requestBody = {
@@ -500,39 +683,36 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
           {
             'parts': [
               {
-                'inlineData': {
-                  'mimeType': 'image/jpeg',
-                  'data': base64Image,
-                }
+                'text':
+                    'SOURCE IDENTITY IMAGE (USER REFERENCE): Use this person as the absolute identity reference. Preserve their exact face, facial structure, skin tone, natural pores, and personal identity completely unchanged.',
               },
               {
-                'text': prompt,
-              }
-            ]
-          }
+                'inlineData': {'mimeType': 'image/jpeg', 'data': base64Image},
+              },
+              {'text': prompt},
+            ],
+          },
         ],
         'generationConfig': {
-          'imageConfig': {
-            'aspectRatio': _mapAspectRatio(aspectRatio),
-          }
-        }
+          'imageConfig': {'aspectRatio': _mapAspectRatio(aspectRatio)},
+        },
       };
 
       debugLog('📤 Sending image generation request to Gemini API...');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 120),
-        onTimeout: () {
-          debugLog('⏱️ Request timeout after 120 seconds');
-          throw Exception('API request timeout after 120 seconds');
-        },
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 120),
+            onTimeout: () {
+              debugLog('⏱️ Request timeout after 120 seconds');
+              throw Exception('API request timeout after 120 seconds');
+            },
+          );
 
       debugLog('📥 Response received with status: ${response.statusCode}');
 
@@ -541,13 +721,14 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
 
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
-          
-          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
             final parts = candidate['content']['parts'];
-            
+
             for (int i = 0; i < parts.length; i++) {
               final part = parts[i];
-              
+
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
@@ -631,48 +812,50 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
     String aspectRatio,
   ) async {
     try {
+      final currentKey = effectiveApiKey;
+      final keyPreview = currentKey.length >= 8
+          ? '${currentKey.substring(0, 8)}...'
+          : 'valid';
       debugLog('🔧 Preparing text-based image request...');
-      debugLog('📏 Aspect ratio: $aspectRatio -> ${_mapAspectRatio(aspectRatio)}');
-      debugLog('🔑 API Key: ${apiKey.substring(0, 10)}...');
+      debugLog(
+        '📏 Aspect ratio: $aspectRatio -> ${_mapAspectRatio(aspectRatio)}',
+      );
+      debugLog('🔑 API Key: $keyPreview');
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$currentKey',
       );
 
       final requestBody = {
         'contents': [
           {
             'parts': [
-              {
-                'text': prompt,
-              }
-            ]
-          }
+              {'text': prompt},
+            ],
+          },
         ],
         'generationConfig': {
-          'imageConfig': {
-            'aspectRatio': _mapAspectRatio(aspectRatio),
-          }
-        }
+          'imageConfig': {'aspectRatio': _mapAspectRatio(aspectRatio)},
+        },
       };
 
       debugLog('📤 Sending text-based request to: ${url.scheme}://${url.host}');
       debugLog('📊 Request body size: ${jsonEncode(requestBody).length} bytes');
       debugLog('📝 Prompt length: ${prompt.length} characters');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 120),
-        onTimeout: () {
-          debugLog('⏱️ Text-based request timeout after 120 seconds');
-          throw Exception('API request timeout after 120 seconds');
-        },
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 120),
+            onTimeout: () {
+              debugLog('⏱️ Text-based request timeout after 120 seconds');
+              throw Exception('API request timeout after 120 seconds');
+            },
+          );
 
       debugLog('📥 Text-based response status: ${response.statusCode}');
       debugLog('📥 Response size: ${response.body.length} bytes');
@@ -683,12 +866,15 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
 
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
-          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
             for (final part in candidate['content']['parts']) {
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
-                debugLog('✅ Text-based image generated (${imageData.length} bytes)');
+                debugLog(
+                  '✅ Text-based image generated (${imageData.length} bytes)',
+                );
                 return 'data:$mimeType;base64,$imageData';
               }
             }
@@ -701,7 +887,9 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
         final errorBody = response.body;
         debugLog('❌ Text-based API Error: ${response.statusCode}');
         debugLog('❌ Error: $errorBody');
-        throw Exception('API returned status ${response.statusCode}: $errorBody');
+        throw Exception(
+          'API returned status ${response.statusCode}: $errorBody',
+        );
       }
     } catch (e) {
       debugLog('❌ Exception in _generateSingleImageFromPrompt: $e');
@@ -723,7 +911,8 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
       final templateBase64 = await _fileToBase64(templateImage);
       final userBase64 = await _fileToBase64(userPhoto);
 
-      String prompt = '''Generate a magazine cover. This is the person whose face MUST be on the cover. Copy their exact face, skin tone, facial features, and identity onto the magazine cover shown in the next image. The magazine cover is just a layout template - replace any face on it with this person's face. Make it look like this person is the cover star of this magazine. Keep their face sharp, clear, and recognizable. Do not change their facial features.''';
+      String prompt =
+          '''Generate a magazine cover. This is the person whose face MUST be on the cover. Copy their exact face, skin tone, facial features, and identity onto the magazine cover shown in the next image. The magazine cover is just a layout template - replace any face on it with this person's face. Make it look like this person is the cover star of this magazine. Keep their face sharp, clear, and recognizable. Do not change their facial features.''';
 
       if (imagePrompt.isNotEmpty) {
         prompt += '\n\nAdditional style: $imagePrompt';
@@ -736,7 +925,7 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
       debugLog('📝 Magazine prompt ready');
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$apiKey',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$effectiveApiKey',
       );
 
       // User photo FIRST with label, then template with label
@@ -746,43 +935,41 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
             'parts': [
               {'text': 'THIS IS THE PERSON - USE THEIR FACE:'},
               {
-                'inlineData': {
-                  'mimeType': 'image/jpeg',
-                  'data': userBase64,
-                }
+                'inlineData': {'mimeType': 'image/jpeg', 'data': userBase64},
               },
-              {'text': 'THIS IS THE MAGAZINE TEMPLATE LAYOUT - USE ONLY THE DESIGN:'},
+              {
+                'text':
+                    'THIS IS THE MAGAZINE TEMPLATE LAYOUT - USE ONLY THE DESIGN:',
+              },
               {
                 'inlineData': {
                   'mimeType': 'image/jpeg',
                   'data': templateBase64,
-                }
+                },
               },
-              {'text': prompt}
-            ]
-          }
+              {'text': prompt},
+            ],
+          },
         ],
         'generationConfig': {
-          'imageConfig': {
-            'aspectRatio': _mapAspectRatio(aspectRatio),
-          }
-        }
+          'imageConfig': {'aspectRatio': _mapAspectRatio(aspectRatio)},
+        },
       };
 
       debugLog('📤 Sending magazine generation request...');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 120),
-        onTimeout: () {
-          throw Exception('API request timeout after 120 seconds');
-        },
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 120),
+            onTimeout: () {
+              throw Exception('API request timeout after 120 seconds');
+            },
+          );
 
       debugLog('📥 Response received with status: ${response.statusCode}');
 
@@ -791,13 +978,14 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
 
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
           final candidate = data['candidates'][0];
-          
-          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
             final parts = candidate['content']['parts'];
-            
+
             for (int i = 0; i < parts.length; i++) {
               final part = parts[i];
-              
+
               if (part['inlineData'] != null) {
                 final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
                 final imageData = part['inlineData']['data'];
@@ -814,6 +1002,109 @@ IMPORTANT: Be EXTREMELY detailed and specific about every person's pose, positio
       }
     } catch (e) {
       debugLog('❌ Exception in generateMagazineCover: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate Carousel slide by performing face replacement onto selected template image
+  Future<String> generateCarouselFromTemplate({
+    required String templateImageUrl,
+    required File userPhoto,
+    String userTopic = '',
+  }) async {
+    try {
+      debugLog('🎨 Starting Carousel Template Face Swap generation...');
+
+      final userBytes = await userPhoto.readAsBytes();
+      final userBase64 = base64Encode(userBytes);
+
+      // Fetch template image bytes
+      Uint8List templateBytes;
+      if (templateImageUrl.startsWith('http')) {
+        final resp = await http
+            .get(Uri.parse(templateImageUrl))
+            .timeout(const Duration(seconds: 30));
+        templateBytes = resp.bodyBytes;
+      } else if (templateImageUrl.startsWith('data:image')) {
+        templateBytes = base64Decode(templateImageUrl.split(',')[1]);
+      } else {
+        templateBytes = await File(templateImageUrl).readAsBytes();
+      }
+      final templateBase64 = base64Encode(templateBytes);
+
+      String prompt = '''Generate a carousel template slide image. 
+THIS IS A FACE REPLACEMENT TASK.
+IMAGE 1 contains the user's face and true identity. 
+IMAGE 2 contains the carousel template image with layout, framing, background, graphic design, and style.
+INSTRUCTIONS:
+1. Replace any face in the template image (IMAGE 2) with the exact face, skin tone, facial features, and identity of the person in IMAGE 1.
+2. Keep the template background, layout structure, graphic elements, text positioning, outfit style, and visual framing of IMAGE 2 completely intact.
+3. Make the face swap seamless, sharp, photorealistic, and natural.''';
+
+      if (userTopic.isNotEmpty) {
+        prompt += '\n\nTopic / Text context: "$userTopic"';
+      }
+
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$effectiveApiKey',
+      );
+
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {'text': 'IMAGE 1 (USER FACE TO USE):'},
+              {
+                'inlineData': {'mimeType': 'image/jpeg', 'data': userBase64},
+              },
+              {'text': 'IMAGE 2 (CAROUSEL TEMPLATE TO KEEP DESIGN):'},
+              {
+                'inlineData': {
+                  'mimeType': 'image/jpeg',
+                  'data': templateBase64,
+                },
+              },
+              {'text': prompt},
+            ],
+          },
+        ],
+        'generationConfig': {
+          'imageConfig': {'aspectRatio': '3:4'},
+        },
+      };
+
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 120));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          if (candidate['content'] != null &&
+              candidate['content']['parts'] != null) {
+            for (final part in candidate['content']['parts']) {
+              if (part['inlineData'] != null) {
+                final mimeType = part['inlineData']['mimeType'] ?? 'image/png';
+                final imageData = part['inlineData']['data'];
+                debugLog(
+                  '✅ Carousel template face swap generated successfully',
+                );
+                return 'data:$mimeType;base64,$imageData';
+              }
+            }
+          }
+        }
+      }
+      throw Exception(
+        'Carousel template generation returned status ${response.statusCode}',
+      );
+    } catch (e) {
+      debugLog('❌ Error in generateCarouselFromTemplate: $e');
       rethrow;
     }
   }

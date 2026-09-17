@@ -11,6 +11,8 @@ import 'notifications_screen.dart';
 import 'help_support_screen.dart';
 import 'subscription_screen.dart';
 import 'library_screen.dart';
+import 'legal_document_viewer_screen.dart';
+import '../providers/library_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -77,6 +79,190 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  void _showDeleteUserDataDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_sweep_outlined, color: Colors.orangeAccent, size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Delete User Data?',
+                style: AppFonts.playfair(
+                  size: 18,
+                  weight: FontWeight.w900,
+                  color: Colors.orangeAccent,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'This will permanently delete all your generated AI portraits, videos, talking heads, library items, notifications, and activity records.\n\nYour account login and profile will remain active, but all created data will be wiped. This action cannot be undone.',
+          style: AppFonts.poppins(
+            size: 13,
+            color: AppColors.muted,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'CANCEL',
+              style: AppFonts.poppins(
+                size: 11,
+                weight: FontWeight.w700,
+                color: AppColors.muted,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Deleting all user data and creations...', style: AppFonts.poppins(color: Colors.white)),
+                  backgroundColor: Colors.orangeAccent,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+
+              final success = await context.read<AuthProvider>().deleteUserData();
+              if (context.mounted) {
+                if (success) {
+                  // Refresh user provider & library provider immediately
+                  context.read<UserProvider>().refreshCredits();
+                  context.read<LibraryProvider>().refresh();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('All user data and creations have been permanently deleted.', style: AppFonts.poppins(color: Colors.white)),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete user data. Please try again.', style: AppFonts.poppins(color: Colors.white)),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: Text(
+              'DELETE DATA',
+              style: AppFonts.poppins(
+                size: 11,
+                weight: FontWeight.w700,
+                color: Colors.orangeAccent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Delete Account?',
+                style: AppFonts.playfair(
+                  size: 18,
+                  weight: FontWeight.w900,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete your account?\n\nThis will immediately delete your account credentials, profile, and all associated data. You will be logged out immediately, and this account will cease to exist. This action is irreversible.',
+          style: AppFonts.poppins(
+            size: 13,
+            color: AppColors.muted,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'CANCEL',
+              style: AppFonts.poppins(
+                size: 11,
+                weight: FontWeight.w700,
+                color: AppColors.muted,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Deleting account and all personal data...', style: AppFonts.poppins(color: Colors.white)),
+                  backgroundColor: Colors.redAccent,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+
+              final success = await context.read<AuthProvider>().deleteAccount();
+              if (context.mounted) {
+                if (success) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (_) => false,
+                  );
+                } else {
+                  final error = context.read<AuthProvider>().errorMessage;
+                  if (error == 'requires-recent-login') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Security check: Please log out and log back in, then tap Delete Account again to verify identity.', style: AppFonts.poppins(color: Colors.white)),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Account deletion failed: $error', style: AppFonts.poppins(color: Colors.white)),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            child: Text(
+              'DELETE FOREVER',
+              style: AppFonts.poppins(
+                size: 11,
+                weight: FontWeight.w700,
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -114,6 +300,16 @@ class ProfileScreen extends StatelessWidget {
                               ? Image.network(
                                   imageUrl,
                                   fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                  cacheWidth: 200,
+                                  cacheHeight: 200,
+                                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                    if (wasSynchronouslyLoaded || frame != null) return child;
+                                    return Container(
+                                      color: const Color(0xFF2a2a1a),
+                                      child: const Icon(Icons.person, color: AppColors.gold, size: 50),
+                                    );
+                                  },
                                   errorBuilder: (context, error, stackTrace) => Container(
                                     color: const Color(0xFF2a2a1a),
                                     child: const Icon(Icons.person, color: AppColors.gold, size: 50),
@@ -225,6 +421,53 @@ class ProfileScreen extends StatelessWidget {
                     subtitle: 'Get assistance',
                     onTap: () => _push(context, const HelpSupportScreen()),
                   ),
+                  const SizedBox(height: 24),
+
+                  // Legal & Policies Header
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 12),
+                    child: Text(
+                      'LEGAL & POLICIES',
+                      style: AppFonts.poppins(
+                        size: 11,
+                        weight: FontWeight.w700,
+                        color: AppColors.gold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+
+                  _menuItem(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy Policy',
+                    subtitle: 'Data protection & AI processing notice',
+                    color: AppColors.gold,
+                    onTap: () => _push(context, const LegalDocumentViewerScreen(documentType: LegalDocumentType.privacyPolicy)),
+                  ),
+                  const SizedBox(height: 12),
+                  _menuItem(
+                    icon: Icons.description_outlined,
+                    title: 'Terms of Service & EULA',
+                    subtitle: 'Subscription terms & user agreement',
+                    color: AppColors.gold,
+                    onTap: () => _push(context, const LegalDocumentViewerScreen(documentType: LegalDocumentType.termsOfService)),
+                  ),
+                  const SizedBox(height: 12),
+                  _menuItem(
+                    icon: Icons.delete_outline,
+                    title: 'Account & Data Deletion',
+                    subtitle: 'How to delete your account and data',
+                    color: Colors.redAccent,
+                    onTap: () => _push(context, const LegalDocumentViewerScreen(documentType: LegalDocumentType.accountDeletion)),
+                  ),
+                  const SizedBox(height: 12),
+                  _menuItem(
+                    icon: Icons.info_outline,
+                    title: 'About Us',
+                    subtitle: 'Company background & contact info',
+                    color: const Color(0xFF3498DB),
+                    onTap: () => _push(context, const LegalDocumentViewerScreen(documentType: LegalDocumentType.aboutUs)),
+                  ),
                   const SizedBox(height: 32),
 
                   // Logout Button
@@ -232,6 +475,94 @@ class ProfileScreen extends StatelessWidget {
                     label: 'LOGOUT',
                     outlined: true,
                     onTap: () => _showLogoutDialog(context),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Data & Account Management Section (Apple Guideline 5.1.1(v) Compliance)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.redAccent.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.shield_outlined, color: Colors.redAccent, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'DATA & PRIVACY MANAGEMENT',
+                              style: AppFonts.poppins(
+                                size: 11,
+                                weight: FontWeight.w800,
+                                color: Colors.redAccent,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'You can choose to wipe your created creations and library, or permanently terminate and delete your entire account.',
+                          textAlign: TextAlign.center,
+                          style: AppFonts.poppins(
+                            size: 11,
+                            color: AppColors.muted,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Button 1: Delete User Data
+                        OutlinedButton.icon(
+                          onPressed: () => _showDeleteUserDataDialog(context),
+                          icon: const Icon(Icons.delete_sweep_outlined, color: Colors.orangeAccent, size: 18),
+                          label: Text(
+                            'DELETE USER DATA',
+                            style: AppFonts.poppins(
+                              size: 11,
+                              weight: FontWeight.w800,
+                              color: Colors.orangeAccent,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.orangeAccent, width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Button 2: Delete Account
+                        OutlinedButton.icon(
+                          onPressed: () => _showDeleteAccountDialog(context),
+                          icon: const Icon(Icons.delete_forever_outlined, color: Colors.redAccent, size: 18),
+                          label: Text(
+                            'DELETE ACCOUNT',
+                            style: AppFonts.poppins(
+                              size: 11,
+                              weight: FontWeight.w800,
+                              color: Colors.redAccent,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.redAccent, width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 40),
                 ],

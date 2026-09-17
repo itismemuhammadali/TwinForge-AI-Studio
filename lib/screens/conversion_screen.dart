@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
-import 'talking_head_screen.dart';
+import 'talking_heads/talking_head_image_review_screen.dart';
 import 'broll_entry_point_screen.dart';
 import 'carousel_screen.dart';
 
@@ -88,7 +88,11 @@ class ConversionScreen extends StatelessWidget {
                 color: const Color(0xFF9B59B6),
                 onTap: () => _navigate(
                   context,
-                  TalkingHeadScreen(content: content),
+                  TalkingHeadImageReviewScreen(
+                    imageSource: 'url',
+                    imageData: content.editedImageUrl ?? content.originalImageUrl,
+                    title: 'TALKING HEAD REVIEW',
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

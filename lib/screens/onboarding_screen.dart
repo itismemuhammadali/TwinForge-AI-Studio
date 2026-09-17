@@ -173,21 +173,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Container(
       color: const Color(0xFF0E0E0A),
       child: SafeArea(
-        child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 40),
               Image.asset(
                 'assets/images/TWINORA.AI_LOGO.png',
-                width: 200, height: 200, fit: BoxFit.contain,
+                width: 180, height: 180, fit: BoxFit.contain,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // TWINORA
               Text(
                 'TWINORA',
                 style: AppFonts.playfair(
-                  size: 48, weight: FontWeight.w900,
+                  size: 44, weight: FontWeight.w900,
                   color: AppColors.gold, letterSpacing: 4,
                 ),
               ),
@@ -218,6 +219,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   color: AppColors.white, style: FontStyle.italic,
                 ),
               ),
+              const SizedBox(height: 140), // Safe space for bottom button overlay
             ],
           ),
         ),
@@ -344,7 +346,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 100), // space for bottom nav
+              const SizedBox(height: 140), // Safe space for bottom button overlay
             ],
           ),
         ),
@@ -357,11 +359,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Container(
       color: const Color(0xFF0E0E0A),
       child: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 40),
               Container(
                 width: 80, height: 80,
                 decoration: BoxDecoration(
@@ -374,7 +376,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: const Icon(Icons.rocket_launch_outlined,
                     color: AppColors.gold, size: 40),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               Text('Ready to Begin?',
                   style: AppFonts.playfair(
                     size: 32, weight: FontWeight.w900, color: AppColors.white,
@@ -386,7 +388,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 style: AppFonts.poppins(size: 14, color: AppColors.muted, height: 1.6),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -412,6 +414,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 140), // Safe space for bottom button overlay
             ],
           ),
         ),

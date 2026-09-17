@@ -4,8 +4,6 @@ import '../widgets/app_widgets.dart';
 import '../services/stock_image_service.dart';
 import 'generate_screen.dart';
 
-import 'profile_screen.dart';
-
 class MagazineScreen extends StatefulWidget {
   const MagazineScreen({super.key});
 
@@ -41,6 +39,48 @@ class _MagazineScreenState extends State<MagazineScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error fetching templates: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _browseAllTemplates() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      String query = 'magazine';
+      if (_selectedStyle == 'Cover') query = 'magazine cover editorial';
+      if (_selectedStyle == 'Newspaper') query = 'newspaper front page press';
+      if (_selectedStyle == 'Comic') query = 'comic book art graphic';
+      if (_selectedStyle == 'All') query = 'fashion magazine layout';
+
+      final moreResults = await StockImageService.searchBoth(query: query, perPage: 30);
+      setState(() {
+        final existingIds = _templates.map((t) => t.id).toSet();
+        final newItems = moreResults.where((t) => !existingIds.contains(t.id)).toList();
+        if (newItems.isNotEmpty) {
+          _templates.addAll(newItems);
+        } else {
+          _templates = moreResults;
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.surface,
+            content: Text(
+              'Loaded ${_templates.length} professional templates',
+              style: AppFonts.poppins(size: 12, color: AppColors.white),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading templates: $e')),
         );
       }
     } finally {
@@ -95,13 +135,7 @@ class _MagazineScreenState extends State<MagazineScreen> {
 
                 GoldButton(
                   label: 'BROWSE ALL PREMIUM TEMPLATES',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      backgroundColor: AppColors.surface,
-                      content: Text('Loading more professional layouts...',
-                          style: AppFonts.poppins(size: 12, color: AppColors.text)),
-                    ));
-                  },
+                  onTap: _browseAllTemplates,
                 ),
               ]),
             ),

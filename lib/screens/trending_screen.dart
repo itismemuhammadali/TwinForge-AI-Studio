@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
@@ -10,11 +11,23 @@ import 'generate_screen.dart';
 class TrendingScreen extends StatefulWidget {
   final bool fromBroll;
   final bool fromTalkingHead;
+  final bool fromCarousel;
   final bool fromHoliday;
   final bool fromManifestation;
+  final File? avatarImageFile;
   final String? category;
   final String? title;
-  const TrendingScreen({super.key, this.fromBroll = false, this.fromTalkingHead = false, this.fromHoliday = false, this.fromManifestation = false, this.category, this.title});
+  const TrendingScreen({
+    super.key,
+    this.fromBroll = false,
+    this.fromTalkingHead = false,
+    this.fromCarousel = false,
+    this.fromHoliday = false,
+    this.fromManifestation = false,
+    this.avatarImageFile,
+    this.category,
+    this.title,
+  });
 
   @override
   State<TrendingScreen> createState() => _TrendingScreenState();
@@ -53,7 +66,9 @@ class _TrendingScreenState extends State<TrendingScreen> {
                 return AdminContent.fromMap({'id': doc.id, ...data});
               })
               .toList();
-          if (widget.category != null) {
+          if (widget.fromCarousel || widget.category == 'Carousel') {
+            items = items.where((item) => item.category == 'Carousel' || item.tags.contains('Carousel')).toList();
+          } else if (widget.category != null) {
             items = items.where((item) {
               final matchesCategory = item.category == widget.category;
               final matchesTag = item.tags.contains(widget.category);
@@ -157,8 +172,10 @@ class _TrendingScreenState extends State<TrendingScreen> {
               source: 'Admin',
             ),
             prefilledPrompt: item.prompt,
+            avatarImageFile: widget.avatarImageFile,
             fromBroll: widget.fromBroll,
             fromTalkingHead: widget.fromTalkingHead,
+            fromCarousel: widget.fromCarousel,
             fromHoliday: widget.fromHoliday,
             fromManifestation: widget.fromManifestation,
           ),
@@ -188,6 +205,34 @@ class _TrendingScreenState extends State<TrendingScreen> {
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: AppColors.surface,
                     child: const Icon(Icons.broken_image, color: AppColors.muted),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => showReportContentDialog(
+                    context,
+                    contentId: item.id,
+                    contentType: 'admin_template',
+                    previewUrl: item.imageUrl,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.65),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.flag_outlined,
+                      color: Colors.white70,
+                      size: 13,
+                    ),
                   ),
                 ),
               ),

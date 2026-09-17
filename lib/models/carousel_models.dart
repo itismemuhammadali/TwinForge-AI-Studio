@@ -105,18 +105,13 @@ class DrawingOverlay extends OverlayElement {
 
   DrawingOverlay({
     required this.paths,
-    required double x,
-    required double y,
-    required double width,
-    required double height,
-    double opacity = 1.0,
+    required super.x,
+    required super.y,
+    required super.width,
+    required super.height,
+    super.opacity = 1.0,
   }) : super(
     type: 'drawing',
-    x: x,
-    y: y,
-    width: width,
-    height: height,
-    opacity: opacity,
   );
 
   DrawingOverlay copyWith({
@@ -146,20 +141,15 @@ class ImageOverlay extends OverlayElement {
 
   ImageOverlay({
     required this.imageFile,
-    required double x,
-    required double y,
-    required double width,
-    required double height,
+    required super.x,
+    required super.y,
+    required super.width,
+    required super.height,
     this.rotation = 0,
     this.cropShape = 'rectangle',
-    double opacity = 1.0,
+    super.opacity = 1.0,
   }) : super(
     type: 'image',
-    x: x,
-    y: y,
-    width: width,
-    height: height,
-    opacity: opacity,
   );
 
   /// Copy with modifications
@@ -201,10 +191,10 @@ class TextOverlay extends OverlayElement {
 
   TextOverlay({
     required this.text,
-    required double x,
-    required double y,
-    required double width,
-    required double height,
+    required super.x,
+    required super.y,
+    required super.width,
+    required super.height,
     this.fontSize = 24,
     this.fontFamily = 'Montserrat',
     this.fontColor = '#FFFFFF',
@@ -214,14 +204,9 @@ class TextOverlay extends OverlayElement {
     this.underline = false,
     this.backgroundColor = 'transparent',
     this.shadow = false,
-    double opacity = 1.0,
+    super.opacity = 1.0,
   }) : super(
     type: 'text',
-    x: x,
-    y: y,
-    width: width,
-    height: height,
-    opacity: opacity,
   );
 
   /// Copy with modifications

@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:ai_video_image_generation_app/services/seedance_ai_service.dart';
 
 class FalAiService {
   static late String apiKey;
+  static String klingApiKey = '';
   static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
   /// Initialize FAL AI Service with API key from Firebase Remote Config
@@ -31,11 +33,15 @@ class FalAiService {
 
       debugLog('📊 Remote Config fetched. Keys: ${_remoteConfig.getAll().keys}');
 
-      // Get API key from remote config
+      // Get API keys from remote config
       apiKey = _remoteConfig.getString('fal_ai_api_key');
+      klingApiKey = _remoteConfig.getString('kling_api_key');
 
       debugLog('🔍 Fetching fal_ai_api_key from Remote Config...');
-      debugLog('📊 API Key value: ${apiKey.isNotEmpty ? "✅ Found (${apiKey.length} chars)" : "❌ Empty"}');
+      debugLog('📊 FAL API Key value: ${apiKey.isNotEmpty ? "✅ Found (${apiKey.length} chars)" : "❌ Empty"}');
+      if (klingApiKey.isNotEmpty) {
+        debugLog('✅ Kling API Key loaded from Remote Config (${klingApiKey.length} chars)');
+      }
 
       if (apiKey.isEmpty) {
         final allKeys = _remoteConfig.getAll().keys.toList();
@@ -53,7 +59,7 @@ class FalAiService {
   /// Debug logging helper
   static void debugLog(String message) {
     developer.log('[FalAiService] $message');
-    print('[FalAiService] $message');
+    // debugPrint('[FalAiService] $message');
   }
 
   /// Generate carousel image from multiple images and template
@@ -335,12 +341,38 @@ class FalAiService {
             debugLog('📊 Current Status: $status');
 
             if (status == 'COMPLETED') {
-              debugLog('✅ Task COMPLETED! Fetching final result...');
+              debugLog('✅ Seedance task COMPLETED!');
+              final bodyPreview = statusResponse.body.length > 1000
+                  ? statusResponse.body.substring(0, 1000)
+                  : statusResponse.body;
+              debugLog('📊 Full COMPLETED response: $bodyPreview');
+
+              // The Fal queue API returns the full result in the final status poll
+              // Try to extract video directly from status response
+              final response = statusData['response'] ?? statusData;
+              if (response is Map<String, dynamic>) {
+                debugLog('📋 Status response keys: ${response.keys}');
+                if (response['video'] != null) {
+                  final video = response['video'];
+                  if (video is Map && video['url'] != null) {
+                    debugLog('✅ Video URL from status response: ${video['url']}');
+                    return video['url'];
+                  } else if (video is String) {
+                    debugLog('✅ Video URL from status response: $video');
+                    return video;
+                  }
+                }
+                if (response['video_url'] != null) {
+                  debugLog('✅ Video URL from status response: ${response['video_url']}');
+                  return response['video_url'];
+                }
+              }
+
+              // If not in status response, proceed to result URL fetch
               break;
             } else if (status == 'FAILED') {
-              throw Exception('Task failed on FAL AI: ${statusData['error'] ?? 'Unknown error'}');
+              throw Exception('Seedance task failed: ${statusData['error'] ?? 'Unknown error'}');
             } else {
-              // IN_PROGRESS or IN_QUEUE - just continue polling
               debugLog('⏳ Task still in progress ($status)...');
             }
           } else if (statusResponse.statusCode == 404) {
@@ -426,35 +458,67 @@ class FalAiService {
     }
   }
 
-  /// Generate video from a single image with a prompt (image-to-video) with face preservation
+  /// Generate video from a single image with a prompt (image-to-video)
+  /// Tries Seedance 2.0 first, then falls back to Kling, then MiniMax
   Future<String> generateVideoFromImage({
     required String imageUrl,
     required String prompt,
     int? durationSeconds,
   }) async {
+    // Try Seedance 2.0 first (primary)
     try {
-      debugLog('🎬 Starting image-to-video generation with face preservation...');
-      debugLog('📸 Image: $imageUrl');
-      debugLog('✍️ Prompt: $prompt');
-      if (durationSeconds != null) debugLog('⏱️ Duration: ${durationSeconds}s');
+      debugLog('🎬 Trying Seedance 2.0 first...');
+      return await generateVideoFromSeedance(
+        imageUrl: imageUrl,
+        prompt: prompt,
+        durationSeconds: durationSeconds,
+      );
+    } catch (e) {
+      debugLog('⚠️ Seedance failed, trying Kling v3: $e');
+    }
 
-      if (apiKey.isEmpty) {
-        throw Exception('FAL AI API key is empty');
-      }
+    // Fallback to Kling v3
+    try {
+      return await generateVideoFromKling(
+        imageUrl: imageUrl,
+        prompt: prompt,
+        durationSeconds: durationSeconds,
+      );
+    } catch (e) {
+      debugLog('⚠️ Kling failed, trying MiniMax: $e');
+    }
 
-      final url = Uri.parse('https://queue.fal.run/fal-ai/kling-video/v3/pro/image-to-video');
+    // Fallback to MiniMax
+    return _generateVideoMiniMax(imageUrl: imageUrl, prompt: prompt);
+  }
+
+  /// Public Kling 3.0 Pro video generation via FAL AI API (fal-ai/kling-video/v3/pro/image-to-video)
+  Future<String> generateVideoFromKling({
+    required String imageUrl,
+    required String prompt,
+    int? durationSeconds,
+    String? model,
+  }) async {
+    try {
+      final modelId = model ?? 'fal-ai/kling-video/v3/pro/image-to-video';
+      debugLog('🎬 Calling FAL AI Kling API ($modelId)...');
+
+      if (apiKey.isEmpty) throw Exception('FAL AI API key is empty');
+
+      final submitUrl = Uri.parse('https://queue.fal.run/$modelId');
 
       final requestBody = {
         'prompt': prompt,
-        'start_image_url': imageUrl,
-        'duration': durationSeconds != null ? durationSeconds.clamp(3, 15).toString() : '10',
+        'image_url': imageUrl,
+        'duration': (durationSeconds ?? 5).toString(),
+        'negative_prompt':
+            'plastic skin, CGI, 3D render, cartoon, airbrushed, oversaturated, morphing, rubbery face, distorted eyes, extra limbs, blurry, jitter, robotic motion, unnatural physics, synthetic, video game, low quality, artifacts, watermark',
         'generate_audio': false,
       };
 
-      debugLog('📤 Submitting image-to-video task with face reference...');
-
+      debugLog('📤 Submitting Kling task to FAL AI...');
       final submitResponse = await http.post(
-        url,
+        submitUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Key $apiKey',
@@ -463,47 +527,59 @@ class FalAiService {
       );
 
       debugLog('📥 Submit Response Code: ${submitResponse.statusCode}');
+      debugLog('📥 Submit Response Body: ${submitResponse.body}');
 
       if (submitResponse.statusCode != 200 && submitResponse.statusCode != 201) {
-        // Fallback to MiniMax if Kling fails
-        debugLog('⚠️ Kling failed, falling back to MiniMax...');
-        return _generateVideoMiniMax(imageUrl: imageUrl, prompt: prompt);
+        final body = jsonDecode(submitResponse.body);
+        final errorMsg = body['detail'] != null && body['detail'] is List && (body['detail'] as List).isNotEmpty
+            ? body['detail'][0]['msg']
+            : (body['message'] ?? submitResponse.body);
+        throw Exception('FAL AI Kling error (${submitResponse.statusCode}): $errorMsg');
       }
 
       final submitData = jsonDecode(submitResponse.body);
       final requestId = submitData['request_id'];
-      final statusUrl = submitData['status_url'];
-      final responseUrl = submitData['response_url'];
+      final statusUrlFromApi = submitData['status_url'];
+      final responseUrlFromApi = submitData['response_url'];
 
-      debugLog('🆔 Task submitted! Request ID: $requestId');
+      debugLog('🆔 Kling Task submitted to FAL AI! Request ID: $requestId');
 
-      // Poll for completion
-      final pollUrl = statusUrl != null
-          ? Uri.parse(statusUrl)
-          : Uri.parse('https://queue.fal.run/fal-ai/kling-video/v2.1/pro/image-to-video/requests/$requestId/status');
+      final statusUrl = statusUrlFromApi != null
+          ? Uri.parse(statusUrlFromApi)
+          : Uri.parse('https://queue.fal.run/$modelId/requests/$requestId/status');
 
       int attempts = 0;
-      const maxAttempts = 120;
+      const maxAttempts = 120; // 10 minutes max
 
       while (attempts < maxAttempts) {
         attempts++;
-        debugLog('⏳ Polling (Attempt $attempts/$maxAttempts)...');
+        debugLog('⏳ Polling FAL AI Kling status (Attempt $attempts/$maxAttempts)...');
 
         try {
           final statusResponse = await http.get(
-            pollUrl,
+            statusUrl,
             headers: {'Authorization': 'Key $apiKey'},
           ).timeout(const Duration(seconds: 10));
 
           if (statusResponse.statusCode == 200 || statusResponse.statusCode == 202) {
             final statusData = jsonDecode(statusResponse.body);
             final status = statusData['status'];
-            debugLog('📊 Status: $status');
 
             if (status == 'COMPLETED') {
+              debugLog('✅ FAL AI Kling task COMPLETED!');
+              final response = statusData['response'] ?? statusData;
+              if (response is Map<String, dynamic>) {
+                if (response['video'] != null) {
+                  final video = response['video'];
+                  if (video is Map && video['url'] != null) return video['url'].toString();
+                  if (video is String) return video;
+                }
+                if (response['video_url'] != null) return response['video_url'].toString();
+              }
               break;
             } else if (status == 'FAILED') {
-              throw Exception('Video generation failed: ${statusData['error'] ?? 'Unknown error'}');
+              final errorMsg = statusData['error'] ?? 'Unknown error';
+              throw Exception('FAL AI Kling task failed: $errorMsg');
             }
           }
         } catch (e) {
@@ -513,43 +589,53 @@ class FalAiService {
         await Future.delayed(const Duration(seconds: 5));
       }
 
-      // Fetch final result
-      final finalUrl = responseUrl != null
-          ? Uri.parse(responseUrl)
-          : Uri.parse('https://queue.fal.run/fal-ai/kling-video/v2.1/pro/image-to-video/requests/$requestId');
+      final responseUrl = responseUrlFromApi != null
+          ? Uri.parse(responseUrlFromApi)
+          : Uri.parse('https://queue.fal.run/$modelId/requests/$requestId');
 
       final resultResponse = await http.get(
-        finalUrl,
+        responseUrl,
         headers: {'Authorization': 'Key $apiKey'},
       );
 
       if (resultResponse.statusCode == 200) {
         final resultData = jsonDecode(resultResponse.body);
         final response = resultData['response'] ?? resultData;
-
         if (response['video'] != null) {
           final video = response['video'];
-          if (video is Map && video['url'] != null) {
-            debugLog('✅ Video generated: ${video['url']}');
-            return video['url'];
-          } else if (video is String) {
-            debugLog('✅ Video generated: $video');
-            return video;
-          }
+          if (video is Map && video['url'] != null) return video['url'].toString();
+          if (video is String) return video;
         }
-
-        if (response['video_url'] != null) {
-          debugLog('✅ Video generated: ${response['video_url']}');
-          return response['video_url'];
-        }
-
-        throw Exception('No video URL in response');
-      } else {
-        throw Exception('Failed to fetch result: ${resultResponse.statusCode}');
+        if (response['video_url'] != null) return response['video_url'].toString();
       }
+
+      throw Exception('FAL AI Kling error: Failed to retrieve video URL from result endpoint');
     } catch (e) {
-      debugLog('❌ Error: $e');
+      debugLog('❌ FAL AI Kling Error: $e');
       rethrow;
+    }
+  }
+
+  /// Generate video from image using Direct Seedance 2.0 with automatic Kling 3.0 Pro fallback
+  Future<String> generateVideoFromSeedance({
+    required String imageUrl,
+    required String prompt,
+    int? durationSeconds,
+  }) async {
+    try {
+      debugLog('🎬 Calling Direct Seedance 2.0 API (ByteDance ModelArk)...');
+      return await SeedanceAiService.generateVideoFromImage(
+        imageUrl: imageUrl,
+        prompt: prompt,
+        durationSeconds: durationSeconds,
+      );
+    } catch (e) {
+      debugLog('⚠️ Seedance failed ($e). Falling back to Kling 3.0 Pro...');
+      return await generateVideoFromKling(
+        imageUrl: imageUrl,
+        prompt: prompt,
+        durationSeconds: durationSeconds,
+      );
     }
   }
 

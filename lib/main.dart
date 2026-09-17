@@ -7,9 +7,13 @@ import 'providers/content_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/carousel_provider.dart';
 import 'providers/admin_provider.dart';
+import 'providers/library_provider.dart';
 import 'services/firebase_service.dart';
 import 'services/trending_service.dart';
 import 'services/higgsfield_service.dart';
+
+import 'services/open_ai_service.dart';
+import 'services/iap_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +30,13 @@ void main() async {
     await FirebaseService.initialize();
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
+  }
+
+  // Initialize OpenAI Service (Prompt Intelligence Layer)
+  try {
+    await OpenAiService.initialize();
+  } catch (e) {
+    debugPrint('OpenAiService initialization failed: $e');
   }
 
   // Initialize TrendingService
@@ -65,6 +76,8 @@ class AimrTwinApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => CarouselProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
+        ChangeNotifierProvider(create: (_) => LibraryProvider()),
+        ChangeNotifierProvider(create: (_) => IapService()),
       ],
       child: MaterialApp(
         title: 'Twinora',

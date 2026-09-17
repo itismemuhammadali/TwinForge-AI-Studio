@@ -284,7 +284,7 @@ class _CarouselCategoryScreenState extends State<CarouselCategoryScreen> {
                         const SizedBox(height: 16),
                       ],
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

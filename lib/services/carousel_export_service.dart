@@ -35,7 +35,7 @@ class CarouselExportService {
   /// Render text overlay as image using Flutter's text rendering
   static Future<img.Image> renderTextToImage(TextOverlay overlay, int width, int height) async {
     try {
-      debugLog('🎨 Rendering text: "${overlay.text}" (${width}x${height})');
+      debugLog('🎨 Rendering text: "${overlay.text}" (${width}x$height)');
 
       // Create a recorder to capture the text rendering
       final recorder = ui.PictureRecorder();
@@ -304,7 +304,7 @@ class CarouselExportService {
                 dstX: overlayX,
                 dstY: overlayY,
               );
-              debugLog('✅ Image overlay: (${overlayX}, ${overlayY}), ${overlayWidth}x${overlayHeight}');
+              debugLog('✅ Image overlay: ($overlayX, $overlayY), ${overlayWidth}x$overlayHeight');
             }
           } catch (e) {
             debugLog('⚠️ Error adding image overlay: $e');
@@ -331,15 +331,13 @@ class CarouselExportService {
               dstX: overlayX,
               dstY: overlayY,
             );
-            debugLog('✅ Text overlay: (${overlayX}, ${overlayY}), font ${overlay.fontSize}');
+            debugLog('✅ Text overlay: ($overlayX, $overlayY), font ${overlay.fontSize}');
           } catch (e) {
             debugLog('⚠️ Error adding text overlay: $e');
           }
         } else if (overlay is DrawingOverlay) {
           // Render drawing overlay
           try {
-            final overlayWidth = overlay.width.toInt();
-            final overlayHeight = overlay.height.toInt();
             final overlayX = overlay.x.toInt();
             final overlayY = overlay.y.toInt();
 
@@ -351,7 +349,7 @@ class CarouselExportService {
               dstX: overlayX,
               dstY: overlayY,
             );
-            debugLog('✅ Drawing overlay: (${overlayX}, ${overlayY}), ${overlay.paths.length} paths');
+            debugLog('✅ Drawing overlay: ($overlayX, $overlayY), ${overlay.paths.length} paths');
           } catch (e) {
             debugLog('⚠️ Error adding drawing overlay: $e');
           }
@@ -360,7 +358,7 @@ class CarouselExportService {
 
       // Encode to PNG
       final pngBytes = img.encodePng(canvas);
-      debugLog('✅ Slide ${slide.id} rendered successfully (${canvasWidth}x${canvasHeight}, ${pngBytes.length} bytes)');
+      debugLog('✅ Slide ${slide.id} rendered successfully (${canvasWidth}x$canvasHeight, ${pngBytes.length} bytes)');
       return Uint8List.fromList(pngBytes);
     } catch (e) {
       debugLog('❌ Error rendering slide: $e');
@@ -534,7 +532,7 @@ class CarouselExportService {
           return dir;
         }
       } else if (Platform.isIOS) {
-        return getApplicationDocumentsDirectory();
+        return await getApplicationDocumentsDirectory();
       }
     } catch (e) {
       debugLog('⚠️ Error getting downloads directory: $e');

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../constants/legal_links.dart';
 import 'login_screen.dart';
 import 'verification_screen.dart';
 
@@ -24,6 +26,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscureConf   = true;
   String _selectedGender = 'Female';
 
+  Future<void> _openUrl(String urlString) async {
+    final uri = Uri.parse(urlString);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -44,7 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (!_agreed) {
-      setState(() => _error = 'PLEASE CONFIRM TO CONTINUE');
+      setState(() => _error = 'PLEASE AGREE TO USE YOUR OWN FACE TO CONTINUE');
       return;
     }
     
@@ -293,63 +302,105 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                         const SizedBox(height: 24),
 
-                        // Agreement checkbox
+                        // Face Usage & Ethical Consent Card with Checkbox
                         GestureDetector(
-                          onTap: () =>
-                              setState(() => _agreed = !_agreed),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 18,
-                                height: 18,
-                                margin: const EdgeInsets.only(top: 2),
-                                decoration: BoxDecoration(
-                                  color: _agreed
-                                      ? AppColors.gold
-                                      : Colors.transparent,
-                                  border: Border.all(
-                                    color: AppColors.white
-                                        .withValues(alpha: 0.2),
-                                    width: 0.8,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: _agreed
-                                    ? const Icon(Icons.check,
-                                        color: AppColors.black, size: 12)
-                                    : null,
+                          onTap: () => setState(() => _agreed = !_agreed),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _agreed
+                                  ? AppColors.gold.withValues(alpha: 0.12)
+                                  : AppColors.gold.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: _agreed
+                                    ? AppColors.gold
+                                    : AppColors.gold.withValues(alpha: 0.25),
+                                width: _agreed ? 1.5 : 1.0,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Text(
-                                      'I understand that I must sign up and log in using the same email used to purchase this app. Access may be delayed or removed if emails do not match.',
-                                      style: AppFonts.poppins(
-                                        size: 10,
-                                        weight: FontWeight.w700,
-                                        color: AppColors.muted,
-                                        letterSpacing: 1,
-                                        height: 1.7,
+                                    Container(
+                                      padding: const EdgeInsets.all(7),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.verified_user_outlined,
+                                        color: AppColors.gold,
+                                        size: 16,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'PLEASE CONFIRM TO CONTINUE.',
-                                      style: AppFonts.poppins(
-                                        size: 10,
-                                        weight: FontWeight.w700,
-                                        color: AppColors.gold,
-                                        letterSpacing: 1,
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'FACE USAGE & PRIVACY CONSENT',
+                                        style: AppFonts.poppins(
+                                          size: 10,
+                                          weight: FontWeight.w800,
+                                          color: AppColors.gold,
+                                          letterSpacing: 1.2,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 10),
+                                Text(
+                                  'To protect personal privacy and ensure ethical AI generation, you must only use your own face and selfies. You agree that you will never upload or generate content using photos of others without their explicit permission.',
+                                  style: AppFonts.poppins(
+                                    size: 10,
+                                    color: AppColors.white.withValues(alpha: 0.85),
+                                    height: 1.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: _agreed ? AppColors.gold : Colors.transparent,
+                                        border: Border.all(
+                                          color: _agreed
+                                              ? AppColors.gold
+                                              : AppColors.gold.withValues(alpha: 0.6),
+                                          width: 1.5,
+                                        ),
+                                        borderRadius: BorderRadius.circular(5),
+                                      ),
+                                      child: _agreed
+                                          ? const Icon(
+                                              Icons.check,
+                                              color: AppColors.black,
+                                              size: 14,
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'I agree to only use my own face and selfies',
+                                        style: AppFonts.poppins(
+                                          size: 11,
+                                          weight: FontWeight.w700,
+                                          color: _agreed ? AppColors.gold : AppColors.white,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
 
@@ -366,63 +417,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             textAlign: TextAlign.center,
                           ),
                         ],
-
-                        const SizedBox(height: 32),
-
-                        // Privacy Disclaimer
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppColors.gold.withValues(alpha: 0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.gold.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.security,
-                                  color: AppColors.gold,
-                                  size: 16,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'PRIVACY & ETHICS POLICY',
-                                      style: AppFonts.poppins(
-                                        size: 10,
-                                        weight: FontWeight.w800,
-                                        color: AppColors.gold,
-                                        letterSpacing: 1,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'To protect privacy, you must only use your own face for generation. Please do not upload photos of others without their explicit consent.',
-                                      style: AppFonts.poppins(
-                                        size: 10,
-                                        color: AppColors.white.withValues(alpha: 0.8),
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
 
                         const SizedBox(height: 28),
 
@@ -466,7 +460,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 18),
+
+                        // Terms & Privacy Disclosure
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'By signing up, you agree to our ',
+                              style: AppFonts.poppins(size: 10, color: AppColors.muted),
+                            ),
+                            InkWell(
+                              onTap: () => _openUrl(LegalLinks.termsOfUseUrl),
+                              child: Text(
+                                'Terms of Use (EULA)',
+                                style: AppFonts.poppins(
+                                  size: 10,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.gold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                            Text(' and ', style: AppFonts.poppins(size: 10, color: AppColors.muted)),
+                            InkWell(
+                              onTap: () => _openUrl(LegalLinks.privacyPolicyUrl),
+                              child: Text(
+                                'Privacy Policy',
+                                style: AppFonts.poppins(
+                                  size: 10,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.gold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
 
                         Container(
                             height: 0.5,

@@ -26,6 +26,7 @@ class AppFonts {
     FontStyle style = FontStyle.normal,
     double letterSpacing = 0,
     double height = 1.2,
+    TextDecoration? decoration,
   }) =>
       GoogleFonts.playfairDisplay(
         fontSize: size,
@@ -34,6 +35,7 @@ class AppFonts {
         fontStyle: style,
         letterSpacing: letterSpacing,
         height: height,
+        decoration: decoration,
       );
 
   // Poppins — sans labels / body
@@ -44,6 +46,7 @@ class AppFonts {
     FontStyle style = FontStyle.normal,
     double letterSpacing = 0,
     double height = 1.4,
+    TextDecoration? decoration,
   }) =>
       GoogleFonts.poppins(
         fontSize: size,
@@ -52,5 +55,6 @@ class AppFonts {
         fontStyle: style,
         letterSpacing: letterSpacing,
         height: height,
+        decoration: decoration,
       );
 }

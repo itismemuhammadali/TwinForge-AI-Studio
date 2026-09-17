@@ -48,6 +48,78 @@ class FirebaseService {
     await _auth.signOut();
   }
 
+  /// Permanently deletes all generated content, library items, notifications,
+  /// and activity records for a user while preserving their initial sign-up profile.
+  Future<void> deleteUserData(String uid) async {
+    // 1. Delete all subcollections under users/{uid}
+    final subcollections = ['content', 'generatedImages', 'library', 'notifications'];
+    for (final sub in subcollections) {
+      try {
+        final snap = await _firestore.collection('users').doc(uid).collection(sub).get();
+        for (final doc in snap.docs) {
+          await doc.reference.delete();
+        }
+      } catch (e) {
+        // Continue cleaning other collections if one fails
+      }
+    }
+
+    // 2. Delete from top-level collections associated with this user
+    final topLevelQueries = [
+      _firestore.collection('usage_logs').where('uid', isEqualTo: uid),
+      _firestore.collection('usage_logs').where('userId', isEqualTo: uid),
+      _firestore.collection('generated_manifestations').where('userId', isEqualTo: uid),
+      _firestore.collection('generated_manifestations').where('uid', isEqualTo: uid),
+      _firestore.collection('generated_magazines').where('userId', isEqualTo: uid),
+      _firestore.collection('generated_magazines').where('uid', isEqualTo: uid),
+      _firestore.collection('generated_holiday').where('userId', isEqualTo: uid),
+      _firestore.collection('generated_holiday').where('uid', isEqualTo: uid),
+    ];
+
+    for (final query in topLevelQueries) {
+      try {
+        final snap = await query.get();
+        for (final doc in snap.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+    }
+
+    // 3. Reset user profile document while strictly keeping initial signup details
+    try {
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      final data = userDoc.data() ?? {};
+      await _firestore.collection('users').doc(uid).set({
+        'uid': uid,
+        'email': data['email'] ?? '',
+        'name': data['name'] ?? data['displayName'] ?? 'User',
+        'displayName': data['displayName'] ?? data['name'] ?? 'User',
+        'gender': data['gender'] ?? 'Female',
+        'createdAt': data['createdAt'] ?? DateTime.now().toIso8601String(),
+        'credits': 0,
+        'imagesUsedToday': 0,
+        'subscription': 'free_trial',
+        'profileImage': '',
+        'bio': '',
+      });
+    } catch (_) {}
+  }
+
+  /// Permanently deletes all user data and the Firebase Auth account
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      final uid = user.uid;
+      // Wipe all user data and collections first
+      await deleteUserData(uid);
+      try {
+        await _firestore.collection('users').doc(uid).delete();
+      } catch (_) {}
+      // Delete the Firebase Auth user record
+      await user.delete();
+    }
+  }
+
   Future<void> sendPasswordReset(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
   }

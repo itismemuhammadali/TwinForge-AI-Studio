@@ -2,7 +2,7 @@
 
 class StudioOptions {
   static const outfitStyles = [
-    'As in photo', 'Casual Chic', 'Soft Girl', 'Luxury',
+    'As in photo', 'Follow the Prompt', 'CEO Photoshoot', 'Casual Chic', 'Soft Girl', 'Luxury',
     'Jet-Set Executive Jumpsuit', 'Influencer Aesthetic', 'Gym Outfit',
     'Work Outfit', 'Travel Fit', 'Designer Look', 'Lounge Wear',
     'Business Professional', '2-Piece Swimsuit', 'Mini Dress',
@@ -18,12 +18,12 @@ class StudioOptions {
   ];
 
   static const locations = [
-    'Target Run', 'Sephora Haul', 'Gas Station Chic', 'Grocery Store Run',
+    'Follow the Prompt', 'CEO Photoshoot', 'Gas Station Chic', 'Grocery Store Run',
     'Bathroom Mirror Selfie', 'Car Selfie (Luxury Interior)',
     'Car Selfie (Convertible)', 'Studio Podcast', 'Home Podcast — Face Forward',
     'Cozy Living Room', 'Modern Office', 'Pilates Reformer Studio',
     'Aesthetic Bubble Bath', 'Cozy Fireplace', 'Walk-in Luxury Closet',
-    'Vanity / GRWM', 'Farmers Market', 'Morning Coffee Shop', 'Flower Shop',
+    'Vanity / GRWM', 'Sephora Haul', 'Ulta Beauty Trip', 'Farmers Market', 'Morning Coffee Shop', 'Flower Shop',
     'Bookstore / Library', 'Art Gallery', 'Park', 'Hiking Trail',
     'Airport Travel / Lounge', 'Private Jet Interior', 'Rooftop Brunch',
     'Luxury Restaurant', 'Candlelit Dinner', 'Aquarium Tunnel',
@@ -65,9 +65,13 @@ class StudioOptions {
   ];
 
   static const skinStyles = [
-    'Natural & Realistic (with pores)', 'Real Skin Lock (Ultra-Real)',
-    'Glossy & Dewy Finish', 'Soft Matte Finish', 'Sunkissed & Freckled',
-    'Glamorous Flawless (Airbrushed)', 'Ultra-Realistic (Natural, No Filters)',
+    'Real Skin Lock (Ultra-Real, No Smoothing)',
+    'Natural & Realistic (with pores)',
+    'Glossy & Dewy Finish',
+    'Soft Matte Finish',
+    'Sunkissed & Freckled',
+    'Glamorous Flawless (Airbrushed)',
+    'Ultra-Realistic (Natural, No Filters)',
   ];
 
   static const heightOptions = [
@@ -93,7 +97,7 @@ class StudioOptions {
   ];
 
   static const moods = [
-    'Standard / Realistic', 'That Girl (Clean, Productive)',
+    'Follow the Prompt', 'CEO Executive', 'Standard / Realistic', 'That Girl (Clean, Productive)',
     'Rich Mom Energy (Expensive, Classy)', 'Baddie (Bold, Confident)',
     'Y2K Aesthetic (Playful, Retro)', 'Old Money (Timeless, Elegant)',
     'Dark Feminine (Mysterious, Seductive)', 'Coquette (Soft, Romantic, Pink)',

@@ -48,7 +48,7 @@ class CustomDropdown extends StatelessWidget {
             ),
           ),
           child: DropdownButton<String>(
-            value: value,
+            value: options.contains(value) ? value : (options.isNotEmpty ? options.first : null),
             onChanged: (String? newValue) {
               if (newValue != null) {
                 onChanged(newValue);

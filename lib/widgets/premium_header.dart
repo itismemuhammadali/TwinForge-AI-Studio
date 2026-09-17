@@ -66,6 +66,16 @@ class PremiumHeader extends StatelessWidget {
                                 ? Image.network(
                                     imageUrl,
                                     fit: BoxFit.cover,
+                                    gaplessPlayback: true,
+                                    cacheWidth: 120,
+                                    cacheHeight: 120,
+                                    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                      if (wasSynchronouslyLoaded || frame != null) return child;
+                                      return Container(
+                                        color: const Color(0xFF2a2a1a),
+                                        child: const Icon(Icons.person, color: AppColors.gold, size: 22),
+                                      );
+                                    },
                                     errorBuilder: (context, error, stackTrace) => Container(
                                       color: const Color(0xFF2a2a1a),
                                       child: const Icon(Icons.person, color: AppColors.gold, size: 22),

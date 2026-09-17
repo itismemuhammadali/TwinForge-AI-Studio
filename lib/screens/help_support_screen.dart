@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 
@@ -25,8 +27,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     super.dispose();
   }
 
-  void _sendMessage() {
-    if (_messageCtrl.text.isEmpty) {
+  Future<void> _sendMessage() async {
+    final text = _messageCtrl.text.trim();
+    if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -41,22 +44,44 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
     setState(() => _loading = true);
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 1), () {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      await FirebaseFirestore.instance.collection('support_tickets').add({
+        'userId': user?.uid ?? 'anonymous',
+        'email': user?.email ?? 'anonymous',
+        'message': text,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'open',
+        'platform': 'iOS',
+      });
+
       if (mounted) {
-        setState(() => _loading = false);
         _messageCtrl.clear();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Message sent! We\'ll get back to you soon.',
+              'Message sent! Our support team will get back to you soon.',
               style: AppFonts.poppins(color: AppColors.white),
             ),
             backgroundColor: Colors.green,
           ),
         );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to submit ticket: $e',
+              style: AppFonts.poppins(color: AppColors.white),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override

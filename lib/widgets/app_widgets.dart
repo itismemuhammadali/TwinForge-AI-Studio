@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
 
 // ── Reusable Image Source Selection Bottom Sheet ─────────────────────────────
@@ -489,7 +491,7 @@ class AimrDropdown extends StatelessWidget {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: value,
+              value: options.contains(value) ? value : (options.isNotEmpty ? options.first : null),
               isExpanded: true,
               dropdownColor: const Color(0xFF111111),
               padding:
@@ -512,4 +514,199 @@ class AimrDropdown extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Dialog allowing users to report objectionable UGC or AI-generated media (Apple Guideline 1.2)
+Future<void> showReportContentDialog(
+  BuildContext context, {
+  required String contentId,
+  required String contentType,
+  String? previewUrl,
+}) async {
+  final reasons = [
+    'Inappropriate or sexually explicit',
+    'Violence, hate speech, or harassment',
+    'Intellectual property infringement',
+    'Spam, misleading, or fraudulent',
+    'Other objectionable content',
+  ];
+  String selectedReason = reasons.first;
+  final TextEditingController detailsCtrl = TextEditingController();
+  bool isSubmitting = false;
+
+  await showDialog(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF141410),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: AppColors.gold.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.flag_outlined, color: Colors.orangeAccent, size: 22),
+              const SizedBox(width: 10),
+              Text(
+                'Report Content',
+                style: AppFonts.poppins(
+                  size: 16,
+                  weight: FontWeight.w700,
+                  color: AppColors.white,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Twinora has zero tolerance for objectionable material. Please choose a reason:',
+                  style: AppFonts.poppins(size: 12, color: AppColors.muted),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedReason,
+                      isExpanded: true,
+                      dropdownColor: const Color(0xFF1E1E18),
+                      style: AppFonts.poppins(size: 12, color: AppColors.text),
+                      items: reasons
+                          .map((r) => DropdownMenuItem(
+                                value: r,
+                                child: Text(r, style: AppFonts.poppins(size: 12, color: AppColors.text)),
+                              ))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => selectedReason = val);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: detailsCtrl,
+                  maxLines: 3,
+                  style: AppFonts.poppins(size: 12, color: AppColors.text),
+                  decoration: InputDecoration(
+                    hintText: 'Additional details (optional)...',
+                    hintStyle: AppFonts.poppins(size: 12, color: AppColors.muted),
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: AppColors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.gold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+              child: Text(
+                'CANCEL',
+                style: AppFonts.poppins(
+                  size: 12,
+                  weight: FontWeight.w600,
+                  color: AppColors.muted,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orangeAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        await FirebaseFirestore.instance.collection('reports').add({
+                          'contentId': contentId,
+                          'contentType': contentType,
+                          'previewUrl': previewUrl,
+                          'reporterUid': user?.uid ?? 'anonymous',
+                          'reporterEmail': user?.email ?? 'anonymous',
+                          'reason': selectedReason,
+                          'details': detailsCtrl.text.trim(),
+                          'createdAt': FieldValue.serverTimestamp(),
+                          'status': 'pending',
+                        });
+
+                        if (context.mounted) {
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Report submitted. Our moderation team reviews flagged items within 24 hours.',
+                                style: AppFonts.poppins(color: Colors.white),
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to submit report: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.black,
+                      ),
+                    )
+                  : Text(
+                      'SUBMIT REPORT',
+                      style: AppFonts.poppins(
+                        size: 12,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 }

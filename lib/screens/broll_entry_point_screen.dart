@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'library_screen.dart';
 import 'trending_screen.dart';
+import 'broll_image_review_screen.dart';
 
 class BrollEntryPointScreen extends StatelessWidget {
   const BrollEntryPointScreen({super.key});
@@ -13,10 +16,16 @@ class BrollEntryPointScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+              )
+            : null,
         title: Text(
           'CREATE B-ROLL',
           style: AppFonts.poppins(
@@ -83,13 +92,44 @@ class BrollEntryPointScreen extends StatelessWidget {
                 icon: Icons.photo_library_outlined,
                 title: 'Select from Library',
                 subtitle: 'Use a previously generated image from your collection',
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  final result = await Navigator.push<File>(
                     context,
                     MaterialPageRoute(
                       builder: (_) => const LibraryScreen(isSelectionMode: true),
                     ),
                   );
+                  if (result != null && context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BrollImageReviewScreen(
+                          imageFile: result,
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildOptionCard(
+                context,
+                icon: Icons.upload_file,
+                title: 'Upload from Gallery',
+                subtitle: 'Use an image already saved on your device',
+                onTap: () async {
+                  final picker = ImagePicker();
+                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null && context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BrollImageReviewScreen(
+                          imageFile: File(pickedFile.path),
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
             ],

@@ -8,6 +8,8 @@ class GenerationOptions {
   // Female Outfit Styles
   static const List<String> femaleOutfitStyles = [
     "As in photo",
+    "Follow the Prompt",
+    "CEO Photoshoot",
     "Casual Chic",
     "Soft Girl",
     "Luxury",
@@ -32,9 +34,8 @@ class GenerationOptions {
   static const List<String> outfitStyles = femaleOutfitStyles;
 
   static const List<String> locations = [
-    "Target Run",
-    "Sephora Haul",
-    "Ulta Beauty Trip",
+    "Follow the Prompt",
+    "CEO Photoshoot",
     "Gas Station Chic",
     "Grocery Store Run",
     "Bathroom Mirror Selfie",
@@ -50,6 +51,8 @@ class GenerationOptions {
     "Cozy Fireplace",
     "Walk-in Luxury Closet",
     "Vanity / GRWM",
+    "Sephora Haul",
+    "Ulta Beauty Trip",
     "Farmers Market",
     "Morning Coffee Shop",
     "Flower Shop",
@@ -168,14 +171,13 @@ class GenerationOptions {
   ];
 
   static const List<String> skinStyles = [
-    "Natural & Realistic (with pores)",
     "Real Skin Lock (Ultra-Real, No Smoothing)",
+    "Natural & Realistic (with pores)",
     "Glossy & Dewy Finish",
     "Soft Matte Finish",
     "Sunkissed & Freckled",
     "Glamorous Flawless (Airbrushed)",
     "Ultra-Realistic (Natural, No Filters)",
-    "Ultra-Real Skin Lock",
   ];
 
   static const List<String> heights = [
@@ -221,6 +223,8 @@ class GenerationOptions {
   ];
 
   static const List<String> moods = [
+    "Follow the Prompt",
+    "CEO Executive Vibe",
     "Standard / Realistic",
     "That Girl (Clean, Productive)",
     "Rich Mom Energy (Expensive, Classy)",
@@ -239,6 +243,8 @@ class GenerationOptions {
 
   // Male Moods - Atmospheric Mood (from screenshots)
   static const List<String> maleMoods = [
+    "Follow the Prompt",
+    "CEO / Executive Presence",
     "Alpha / Executive Presence",
     "Moody / Mysterious",
     "Affluent / High-Roller",
@@ -258,6 +264,8 @@ class GenerationOptions {
 
   // Male Locations - Geographic Node (from screenshots)
   static const List<String> maleLocations = [
+    "Follow the Prompt",
+    "CEO Photoshoot",
     "Private Jet Luxury Interior",
     "New York, NY",
     "Los Angeles, CA",

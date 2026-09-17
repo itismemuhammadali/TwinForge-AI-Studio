@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
-import '../widgets/app_widgets.dart';
 import '../services/filter_service.dart';
 import '../services/fal_ai_service.dart';
 import '../services/carousel_export_service.dart';
@@ -39,8 +38,6 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
   DrawingPath? _activePath;
   Color _selectedDrawColor = Colors.red;
   double _drawWidth = 5.0;
-
-  final GlobalKey _imageKey = GlobalKey();
   Size _canvasSize = Size.zero; // Real image size in pixels
 
   @override
@@ -81,7 +78,7 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
       setState(() => _isDrawingMode = true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$tool coming soon!'), duration: const Duration(seconds: 1)),
+        SnackBar(content: Text('Selected tool: $tool'), duration: const Duration(seconds: 1)),
       );
     }
   }
@@ -155,131 +152,9 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
     );
   }
 
-  Widget _buildDrawingToolbar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _drawingToolItem(Icons.undo, 'Undo', () {
-            if (_currentSessionPaths.isNotEmpty) {
-              setState(() => _currentSessionPaths.removeLast());
-            }
-          }),
-          _drawingToolItem(Icons.settings, 'Settings', () {
-            _showBrushSettingsPopup();
-          }),
-          _drawingToolItem(Icons.check_circle, 'Apply', () {
-            _saveDrawing();
-          }, isPrimary: true),
-        ],
-      ),
-    );
-  }
 
-  Widget _drawingToolItem(IconData icon, String label, VoidCallback onTap, {bool isPrimary = false}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: isPrimary ? 64 : 48,
-            height: isPrimary ? 64 : 48,
-            decoration: BoxDecoration(
-              color: isPrimary ? AppColors.gold : AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
-            ),
-            child: Icon(icon, color: isPrimary ? Colors.black : AppColors.gold, size: isPrimary ? 32 : 24),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: AppFonts.poppins(size: 11, color: isPrimary ? AppColors.gold : AppColors.muted, weight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
 
-  void _showBrushSettingsPopup() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.inputBg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Brush Settings', style: AppFonts.playfair(size: 22, color: AppColors.white, weight: FontWeight.w900)),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('BRUSH SIZE', style: AppFonts.poppins(size: 10, color: AppColors.gold, weight: FontWeight.w700, letterSpacing: 1)),
-                      Text('${_drawWidth.toInt()}', style: AppFonts.poppins(size: 11, color: AppColors.white, weight: FontWeight.w600)),
-                    ],
-                  ),
-                  Slider(
-                    value: _drawWidth,
-                    min: 1, max: 20,
-                    activeColor: AppColors.gold,
-                    inactiveColor: Colors.white12,
-                    onChanged: (value) => setModalState(() {
-                      setState(() => _drawWidth = value);
-                    }),
-                  ),
-                  const SizedBox(height: 24),
-                  Text('BRUSH COLOR', style: AppFonts.poppins(size: 10, color: AppColors.gold, weight: FontWeight.w700, letterSpacing: 1)),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 40,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        Colors.red, Colors.blue, Colors.green, Colors.yellow, 
-                        Colors.white, Colors.black, Colors.purple, Colors.orange,
-                        Colors.pink, Colors.teal, Colors.cyan, Colors.amber,
-                      ].map((color) {
-                        final isSelected = _selectedDrawColor == color;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: GestureDetector(
-                            onTap: () => setModalState(() {
-                              setState(() => _selectedDrawColor = color);
-                            }),
-                            child: Container(
-                              width: 32, height: 32,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: isSelected ? Colors.white : Colors.white10, width: isSelected ? 2 : 1),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-        );
-      },
-    );
-  }
+
 
   Widget _colorCircle(Color color) {
     bool isSelected = _selectedDrawColor == color;
@@ -862,7 +737,7 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
                       setState(() {
                         _activePath = DrawingPath(
                           points: [[canvasX, canvasY]],
-                          color: '#${_selectedDrawColor.value.toRadixString(16).substring(2).toUpperCase()}',
+                          color: '#${_selectedDrawColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
                           strokeWidth: _drawWidth,
                         );
                         _currentSessionPaths.add(_activePath!);
@@ -927,7 +802,7 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
                           final index = entry.key;
                           final overlay = entry.value;
                           return _buildOverlayWidget(overlay, index, scale, offsetX, offsetY);
-                        }).toList(),
+                        }),
 
                         if (_isProcessing)
                           Container(
@@ -992,12 +867,12 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
             final dy = details.delta.dy / scale;
             
             if (overlay is TextOverlay) {
-              _overlays[index] = (overlay as TextOverlay).copyWith(
+              _overlays[index] = overlay.copyWith(
                 x: overlay.x + dx,
                 y: overlay.y + dy,
               );
             } else if (overlay is ImageOverlay) {
-              _overlays[index] = (overlay as ImageOverlay).copyWith(
+              _overlays[index] = overlay.copyWith(
                 x: overlay.x + dx,
                 y: overlay.y + dy,
               );
@@ -1042,12 +917,12 @@ class _AdvancedEditScreenState extends State<AdvancedEditScreen> {
                         final dh = details.delta.dy / scale;
                         
                         if (overlay is TextOverlay) {
-                          _overlays[index] = (overlay as TextOverlay).copyWith(
+                          _overlays[index] = overlay.copyWith(
                             width: (overlay.width + dw).clamp(50, _canvasSize.width),
                             height: (overlay.height + dh).clamp(20, _canvasSize.height),
                           );
                         } else if (overlay is ImageOverlay) {
-                          _overlays[index] = (overlay as ImageOverlay).copyWith(
+                          _overlays[index] = overlay.copyWith(
                             width: (overlay.width + dw).clamp(50, _canvasSize.width),
                             height: (overlay.height + dh).clamp(50, _canvasSize.height),
                           );

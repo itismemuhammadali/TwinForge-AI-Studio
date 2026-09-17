@@ -6,7 +6,8 @@ import '../widgets/premium_header.dart';
 import '../providers/user_provider.dart';
 import 'profile_screen.dart';
 import 'broll_entry_point_screen.dart';
-import 'carousel_screen.dart';
+import 'talking_head_entry_point_screen.dart';
+import 'carousel_options_screen.dart';
 import 'trending_screen.dart';
 import 'notifications_screen.dart';
 import 'generate_screen_v2.dart';
@@ -17,32 +18,7 @@ class ExploreScreen extends StatelessWidget {
   void _push(BuildContext context, Widget screen) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
-  void _showComingSoon(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.lock_outline, color: AppColors.gold, size: 22),
-            const SizedBox(width: 10),
-            Text('Coming Soon', style: AppFonts.poppins(size: 16, weight: FontWeight.w700, color: AppColors.white)),
-          ],
-        ),
-        content: Text(
-          'This feature is currently in development and will be available soon.',
-          style: AppFonts.poppins(size: 13, color: AppColors.muted, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK', style: AppFonts.poppins(size: 13, weight: FontWeight.w700, color: AppColors.gold)),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +227,7 @@ class ExploreScreen extends StatelessWidget {
         Expanded(child: _card(context, label: 'Talking Head',
             bgColor: const Color(0xFF1a0a1a), accentColor: const Color(0xFFE8A0B4),
             hasTalkingHead: true,
-            onTap: () => _push(context, const TrendingScreen(fromTalkingHead: true, category: 'Talking Head', title: 'Talking Head')))),
+            onTap: () => _push(context, const TalkingHeadEntryPointScreen()))),
         const SizedBox(width: 10),
         Expanded(child: _card(context, label: 'Generate',
             bgColor: const Color(0xFF1a2a1a), accentColor: const Color(0xFF6B8EC4),
@@ -268,7 +244,7 @@ class ExploreScreen extends StatelessWidget {
         Expanded(child: _card(context, label: 'Carousel',
             bgColor: const Color(0xFF1a1a0a), accentColor: const Color(0xFF9B59B6),
             icon: Icons.view_carousel_outlined, hasCarouselDesc: true,
-            onTap: () => _push(context, const CarouselScreen()))),
+            onTap: () => _push(context, const CarouselOptionsScreen()))),
       ]),
       const SizedBox(height: 10),
       Row(children: [
@@ -313,7 +289,7 @@ class ExploreScreen extends StatelessWidget {
           child: Stack(fit: StackFit.expand, children: [
             if (hasTrending)
               Image.asset(
-                'assets/images/trending_cover.png',
+                'assets/images/trending_cover.jpeg',
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
                   decoration: BoxDecoration(gradient: RadialGradient(

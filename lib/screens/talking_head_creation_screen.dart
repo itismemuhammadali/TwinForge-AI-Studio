@@ -1,364 +1,241 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:video_player/video_player.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:gal/gal.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
+import '../services/open_ai_service.dart';
 import '../services/fal_ai_service.dart';
 import '../services/storage_service.dart';
-import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:file_picker/file_picker.dart';
-import 'main_shell.dart';
+import 'talking_head_audio_screen.dart';
+import 'talking_head_video_review_screen.dart';
 
 class TalkingHeadCreationScreen extends StatefulWidget {
-  final GeneratedContent content;
-  const TalkingHeadCreationScreen({super.key, required this.content});
+  final GeneratedContent? content;
+  final File? initialImage;
+
+  const TalkingHeadCreationScreen({
+    super.key,
+    this.content,
+    this.initialImage,
+  });
 
   @override
   State<TalkingHeadCreationScreen> createState() => _TalkingHeadCreationScreenState();
 }
 
-class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
-  final _scriptCtrl = TextEditingController();
-  bool _isGenerating = false;
-  bool _isSaving = false;
-  bool _saveToGallery = false;
-  String? _videoUrl;
-  VideoPlayerController? _videoController;
-  String _statusMessage = '';
-  bool _useRecordedVoice = true;
-  bool _isRecording = false;
-  String? _recordedAudioPath;
-  String? _clonedVoiceId;
-  bool _isCloning = false;
-  String _creationMode = 'clone';
-  String? _uploadedAudioPath;
-  String? _rawVideoUrl;
+class _StyleOption {
+  final String title;
+  final IconData icon;
 
-  AudioRecorder? _audioRecorder;
-  DateTime? _recordingStartTime;
-  Timer? _recordingTimer;
-  final ValueNotifier<String> _recordingDurationText = ValueNotifier('00:00');
-  late final Widget _cachedImage;
-  String? _clonedAudioUrl;
+  const _StyleOption({required this.title, required this.icon});
+}
+
+class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
+  final _promptCtrl = TextEditingController(text: 'Talk passionately with natural hand gestures and subtle head tilts.');
+  final OpenAiService _openAiService = OpenAiService();
+
+  String _selectedStyle = 'Cinematic';
+  String _selectedVideoModel = 'HeyGen';
+  double _durationSeconds = 5.0;
+
+  bool _isGenerating = false;
+  String _statusMessage = '';
+  late Widget _cachedImage;
+  double? _imageAspectRatio;
+
+  final List<_StyleOption> _styles = const [
+    _StyleOption(
+      title: 'Cinematic',
+      icon: Icons.movie_creation_rounded,
+    ),
+    _StyleOption(
+      title: 'UGC',
+      icon: Icons.smartphone_rounded,
+    ),
+    _StyleOption(
+      title: 'Luxury',
+      icon: Icons.auto_awesome_rounded,
+    ),
+    _StyleOption(
+      title: 'Viral Reel',
+      icon: Icons.whatshot_rounded,
+    ),
+    _StyleOption(
+      title: 'Netflix Documentary',
+      icon: Icons.camera_roll_rounded,
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _useRecordedVoice = true;
     _cachedImage = _buildImageDisplay();
-    _initRecorder();
+    _resolveImageAspectRatio();
+  }
+
+  void _resolveImageAspectRatio() async {
+    try {
+      if (widget.initialImage != null) {
+        final bytes = await widget.initialImage!.readAsBytes();
+        final decoded = await decodeImageFromList(bytes);
+        if (mounted && decoded.height > 0) {
+          setState(() {
+            _imageAspectRatio = decoded.width / decoded.height;
+            _cachedImage = _buildImageDisplay();
+          });
+        }
+      } else {
+        final url = _imageUrl;
+        if (url.startsWith('data:image')) {
+          final base64Str = url.split(',')[1];
+          final bytes = base64Decode(base64Str);
+          final decoded = await decodeImageFromList(bytes);
+          if (mounted && decoded.height > 0) {
+            setState(() {
+              _imageAspectRatio = decoded.width / decoded.height;
+              _cachedImage = _buildImageDisplay();
+            });
+          }
+        } else if (url.startsWith('http')) {
+          final image = NetworkImage(url);
+          final stream = image.resolve(const ImageConfiguration());
+          stream.addListener(ImageStreamListener((info, _) {
+            if (mounted && info.image.height > 0) {
+              setState(() {
+                _imageAspectRatio = info.image.width / info.image.height;
+                _cachedImage = _buildImageDisplay();
+              });
+            }
+          }));
+        } else if (url.isNotEmpty) {
+          final bytes = await File(url).readAsBytes();
+          final decoded = await decodeImageFromList(bytes);
+          if (mounted && decoded.height > 0) {
+            setState(() {
+              _imageAspectRatio = decoded.width / decoded.height;
+              _cachedImage = _buildImageDisplay();
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error resolving image aspect ratio: $e');
+    }
   }
 
   @override
   void dispose() {
-    _scriptCtrl.dispose();
-    _videoController?.dispose();
-    _recordingTimer?.cancel();
-    _recordingDurationText.dispose();
-    if (_isRecording) {
-      _audioRecorder?.stop();
-    }
-    _audioRecorder?.dispose();
+    _promptCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _initRecorder() async {
-    try {
-      _audioRecorder ??= AudioRecorder();
-      // Request permission on init - this triggers the iOS permission dialog
-      final hasPermission = await _audioRecorder!.hasPermission();
-      if (!hasPermission && mounted) {
-        // Try to request permission by starting and immediately stopping a recording
-        try {
-          final dir = await getTemporaryDirectory();
-          final path = '${dir.path}/permission_check.m4a';
-          await _audioRecorder!.start(
-            const RecordConfig(
-              encoder: AudioEncoder.aacLc,
-              bitRate: 128000,
-              sampleRate: 44100,
-            ),
-            path: path,
-          );
-          await Future.delayed(const Duration(milliseconds: 100));
-          await _audioRecorder!.stop();
-          // Delete the test file
-          await File(path).delete();
-        } catch (e) {
-          debugPrint('Permission request error: $e');
-        }
-      }
-    } catch (e) {
-      debugPrint('Recorder init error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Voice recording is not available on the iOS Simulator. Please test on a real device.',
-              style: AppFonts.poppins(size: 12),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+  String get _imageUrl {
+    if (widget.initialImage != null) {
+      return widget.initialImage!.path;
     }
+    if (widget.content != null) {
+      return widget.content!.editedImageUrl ?? widget.content!.originalImageUrl;
+    }
+    return '';
   }
 
-  Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      await _stopRecording();
-    } else {
-      await _startRecording();
-    }
-  }
-
-  Future<void> _startRecording() async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/voice_sample.m4a';
-
-      // Try to start recording - this will trigger iOS permission dialog if not granted
-      await _audioRecorder!.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 128000,
-          sampleRate: 44100,
+  Future<void> _generateTalkingHeadVideo() async {
+    final promptText = _promptCtrl.text.trim();
+    if (_selectedVideoModel != 'HeyGen' && promptText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please describe what your character should do first', style: AppFonts.poppins(size: 12)),
+          backgroundColor: Colors.redAccent,
         ),
-        path: path,
-      );
-
-      _recordedAudioPath = path;
-      _startRecordingTimer();
-      if (mounted) setState(() => _isRecording = true);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Voice recording is not available on the iOS Simulator. Please test on a real device.',
-              style: AppFonts.poppins(size: 12),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _startRecordingTimer() {
-    _recordingStartTime = DateTime.now();
-    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_recordingStartTime != null) {
-        final d = DateTime.now().difference(_recordingStartTime!);
-        final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-        _recordingDurationText.value = '$m:$s';
-      }
-    });
-  }
-
-  void _stopRecordingTimer() {
-    _recordingTimer?.cancel();
-    _recordingTimer = null;
-    _recordingStartTime = null;
-    _recordingDurationText.value = '00:00';
-  }
-
-  Future<void> _stopRecording() async {
-    await _audioRecorder?.stop();
-    _stopRecordingTimer();
-    if (mounted) setState(() => _isRecording = false);
-
-    if (_recordedAudioPath != null) {
-      final file = File(_recordedAudioPath!);
-      if (await file.exists()) {
-        final bytes = await file.readAsBytes();
-        if (bytes.length < 1000) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Recording too short. Please record at least 3 seconds.', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-            );
-          }
-          setState(() {
-            _recordedAudioPath = null;
-            _useRecordedVoice = false;
-          });
-          return;
-        }
-
-        setState(() => _statusMessage = 'Recording saved. Enter your script and tap Clone Voice.');
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) setState(() => _statusMessage = '');
-        });
-      }
-    }
-  }
-
-  Future<void> _cloneVoice() async {
-    final script = _scriptCtrl.text.trim();
-    if (script.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please write your script first', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-      );
-      return;
-    }
-    if (_recordedAudioPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please record your voice first', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    setState(() {
-      _isCloning = true;
-      _statusMessage = 'Cloning your voice and generating speech...';
-    });
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      final uid = user?.uid ?? 'anonymous';
-
-      // Upload the recorded audio to get a URL
-      final file = File(_recordedAudioPath!);
-      final bytes = await file.readAsBytes();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final uploadPath = 'users/$uid/talking_head/voice_sample_$timestamp.m4a';
-      final voiceSampleUrl = await StorageService.uploadAudioBytes(bytes, uploadPath);
-
-      // Send to Fal AI for voice cloning + speech generation
-      final fal = FalAiService();
-      final generatedAudioUrl = await fal.cloneAndGenerateSpeech(
-        voiceSampleUrl: voiceSampleUrl,
-        script: script,
-      );
-
-      // Save the generated audio
-      final audioResponse = await http.get(Uri.parse(generatedAudioUrl));
-      final audioPath = 'users/$uid/talking_head/cloned_audio_$timestamp.mp3';
-      _clonedAudioUrl = await StorageService.uploadAudioBytes(audioResponse.bodyBytes, audioPath);
-      debugPrint('✅ Cloned audio saved: $_clonedAudioUrl');
-
-      setState(() {
-        _isCloning = false;
-        _clonedVoiceId = 'fal_voice_clone';
-        _clonedAudioUrl = _clonedAudioUrl;
-        _statusMessage = 'Voice cloned and speech ready!';
-      });
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) setState(() => _statusMessage = '');
-      });
-    } catch (e) {
-      debugPrint('❌ Voice cloning error: $e');
-      setState(() {
-        _isCloning = false;
-        _clonedVoiceId = null;
-        _statusMessage = '';
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Voice cloning failed: $e', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  String get _imageUrl =>
-      widget.content.editedImageUrl ?? widget.content.originalImageUrl;
-
-  Future<void> _generateTalkingHead() async {
-    if (_scriptCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please write a script', style: AppFonts.poppins(size: 12, color: AppColors.text)), backgroundColor: AppColors.surface),
-      );
-      return;
-    }
-
-    if (_useRecordedVoice && _recordedAudioPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please record your voice first', style: AppFonts.poppins(size: 12, color: AppColors.text)), backgroundColor: AppColors.surface),
       );
       return;
     }
 
     setState(() {
       _isGenerating = true;
-      _statusMessage = 'Uploading image...';
+      _statusMessage = _selectedVideoModel == 'HeyGen'
+          ? 'Uploading reference photo...'
+          : 'Optimizing dynamic motion prompt...';
     });
-
-    debugPrint('🎬 _generateTalkingHead: _clonedAudioUrl=$_clonedAudioUrl');
 
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not authenticated');
 
-      setState(() => _statusMessage = 'Uploading image...');
-      final imageUrl = await _uploadImageToStorage();
-
-      String audioUrl = '';
-      if (_clonedAudioUrl != null && _clonedAudioUrl!.isNotEmpty) {
-        audioUrl = _clonedAudioUrl!;
-        debugPrint('✅ Using cloned audio: $audioUrl');
-      } else if (_useRecordedVoice && _recordedAudioPath != null) {
-        final recordedFile = File(_recordedAudioPath!);
-        final recordedBytes = await recordedFile.readAsBytes();
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final audioPath = 'users/${user.uid}/talking_head/recorded_$timestamp.m4a';
-        audioUrl = await StorageService.uploadAudioBytes(recordedBytes, audioPath);
+      String optimizedPrompt = '';
+      if (_selectedVideoModel != 'HeyGen') {
+        optimizedPrompt = await _openAiService.generateOptimizedVideoPrompt(
+          userPrompt: promptText,
+          style: _selectedStyle,
+          videoModel: _selectedVideoModel,
+        );
       }
 
-      // Get audio duration
-      int? audioDurationSeconds;
-      try {
-        final durCtrl = VideoPlayerController.networkUrl(Uri.parse(audioUrl));
-        await durCtrl.initialize();
-        audioDurationSeconds = durCtrl.value.duration.inSeconds;
-        await durCtrl.dispose();
-        debugPrint('⏱️ Audio duration: ${audioDurationSeconds}s');
-      } catch (e) {
-        debugPrint('⚠️ Could not get audio duration: $e');
+      setState(() => _statusMessage = 'Uploading reference photo...');
+      final uploadedImageUrl = await _uploadImageToStorage();
+
+      if (_selectedVideoModel == 'HeyGen') {
+        // HEYGEN DIRECT FLOW: Proceed directly to Audio Recording Screen!
+        setState(() {
+          _isGenerating = false;
+          _statusMessage = '';
+        });
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TalkingHeadAudioScreen(
+                avatarImageUrl: uploadedImageUrl,
+                durationSeconds: _durationSeconds.toInt(),
+                prompt: '',
+                videoModel: 'HeyGen',
+              ),
+            ),
+          );
+        }
+      } else {
+        // Dynamic Motion Flow: Generate silent motion video first
+        setState(() => _statusMessage = 'Generating dynamic talking head video...');
+        final generatedVideoUrl = await FalAiService().generateVideoFromKling(
+          imageUrl: uploadedImageUrl,
+          prompt: optimizedPrompt,
+          durationSeconds: _durationSeconds.toInt(),
+        );
+
+        setState(() {
+          _isGenerating = false;
+          _statusMessage = '';
+        });
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TalkingHeadVideoReviewScreen(
+                videoUrl: generatedVideoUrl,
+                durationSeconds: _durationSeconds.toInt(),
+                prompt: optimizedPrompt,
+                hasAudioStitched: false,
+              ),
+            ),
+          );
+        }
       }
-
-      // Step 1: Generate video from image using Kling v3 via FAL AI
-      setState(() => _statusMessage = 'Generating video from image...');
-      final fal = FalAiService();
-      final videoUrl = await fal.generateVideoFromImage(
-        imageUrl: imageUrl,
-        prompt: 'A person speaking naturally with subtle head movements and natural facial expressions',
-        durationSeconds: audioDurationSeconds,
-      );
-      debugPrint('✅ Video created: $videoUrl');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Video created!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
-      );
-
-      // Step 2: Lip-sync with audio using Sync Labs
-      setState(() => _statusMessage = 'Syncing lips with audio...');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lip syncing audio...', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.blue.shade700),
-      );
-      final lipSyncedUrl = await _lipSyncVideo(videoUrl, audioUrl);
-      debugPrint('✅ Lip sync done: $lipSyncedUrl');
-
-      setState(() {
-        _videoUrl = lipSyncedUrl;
-        _statusMessage = '';
-        _isGenerating = false;
-      });
-      _initVideoPlayer(lipSyncedUrl);
     } catch (e) {
+      debugPrint('❌ Video generation error: $e');
       if (mounted) {
-        setState(() { _isGenerating = false; _statusMessage = ''; });
+        setState(() {
+          _isGenerating = false;
+          _statusMessage = '';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Video generation error: $e', style: AppFonts.poppins(color: AppColors.white)),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
@@ -386,219 +263,6 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
     }
   }
 
-  Future<void> _saveVideo() async {
-    if (_videoUrl == null) return;
-    setState(() => _isSaving = true);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Not authenticated');
-
-      // Download video first
-      setState(() => _statusMessage = 'Downloading video...');
-      final response = await http.get(Uri.parse(_videoUrl!)).timeout(
-        const Duration(minutes: 5),
-        onTimeout: () => throw Exception('Download timed out'),
-      );
-      final videoBytes = response.bodyBytes;
-      debugPrint('📥 Downloaded video: ${videoBytes.lengthInBytes / 1024 / 1024} MB');
-
-      // Save to local temp file
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/talking_head_${DateTime.now().millisecondsSinceEpoch}.mp4');
-      await tempFile.writeAsBytes(videoBytes);
-
-      // Always save to Firebase Storage
-      setState(() => _statusMessage = 'Saving to library...');
-      final fileName = 'talking_head_${DateTime.now().millisecondsSinceEpoch}.mp4';
-      final path = 'users/${user.uid}/generatedVideos/$fileName';
-      final savedUrl = await StorageService.uploadVideo(videoBytes, path);
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('library').add({
-        'type': 'video',
-        'url': savedUrl,
-        'source': 'talking_head',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // Also save to gallery if checked
-      if (_saveToGallery) {
-        setState(() => _statusMessage = 'Saving to gallery...');
-        try {
-          await Gal.putVideo(tempFile.path);
-          debugPrint('✅ Saved to gallery');
-        } catch (e) {
-          debugPrint('⚠️ Gallery save failed: $e');
-        }
-      }
-
-      await tempFile.delete();
-      setState(() => _statusMessage = '');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Video saved!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)),
-        );
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const MainShell()), (route) => false);
-      }
-    } catch (e) {
-      debugPrint('❌ Save error: $e');
-      if (mounted) {
-        setState(() => _statusMessage = '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _initVideoPlayer(String url) async {
-    _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
-    await _videoController!.initialize();
-    setState(() {});
-    _videoController!.play();
-  }
-
-  Widget _buildModeOption(String mode, String label, IconData icon) {
-    final isSelected = _creationMode == mode;
-    return GestureDetector(
-      onTap: () {
-        if (_isGenerating || _isCloning) return;
-        setState(() { _creationMode = mode; _uploadedAudioPath = null; _rawVideoUrl = null; _videoUrl = null; });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: isSelected ? Border.all(color: AppColors.gold.withValues(alpha: 0.5)) : null,
-        ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: isSelected ? AppColors.gold : AppColors.muted, size: 18),
-          const SizedBox(width: 8),
-          Text(label, style: AppFonts.poppins(size: 13, weight: isSelected ? FontWeight.w600 : FontWeight.w400, color: isSelected ? AppColors.gold : AppColors.muted)),
-        ]),
-      ),
-    );
-  }
-
-  Future<void> _pickAudioFromDevice() async {
-    try {
-      final result = await FilePicker.pickFiles(type: FileType.audio);
-      if (result != null && result.files.single.path != null) {
-        setState(() { _uploadedAudioPath = result.files.single.path; _recordedAudioPath = null; });
-        debugPrint('📁 Audio picked: ${result.files.single.name}');
-      }
-    } catch (e) {
-      debugPrint('❌ File picker error: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick audio: $e', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red));
-    }
-  }
-
-  Future<void> _createVideoOnly() async {
-    debugPrint('🎬 _createVideoOnly called');
-    final audioPath = _recordedAudioPath ?? _uploadedAudioPath;
-    debugPrint('📁 audioPath: $audioPath');
-    if (audioPath == null) {
-      debugPrint('⚠️ No audio path - returning');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please record or upload audio first', style: AppFonts.poppins(size: 12)), backgroundColor: Colors.red),
-      );
-      return;
-    }
-    setState(() { _isGenerating = true; _statusMessage = 'Saving audio...'; });
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Not authenticated');
-
-      final audioFile = File(audioPath);
-      final audioBytes = await audioFile.readAsBytes();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final audioUrl = await StorageService.uploadAudioBytes(audioBytes, 'users/${user.uid}/talking_head/recorded_$timestamp.m4a');
-      debugPrint('✅ Audio uploaded: $audioUrl');
-
-      setState(() => _statusMessage = 'Uploading image...');
-      final imageUrl = await _uploadImageToStorage();
-      debugPrint('✅ Image uploaded: $imageUrl');
-
-      int? audioDurationSeconds;
-      try {
-        final durCtrl = VideoPlayerController.networkUrl(Uri.parse(audioUrl));
-        await durCtrl.initialize();
-        audioDurationSeconds = durCtrl.value.duration.inSeconds;
-        await durCtrl.dispose();
-        debugPrint('⏱️ Audio duration: ${audioDurationSeconds}s');
-      } catch (e) { debugPrint('⚠️ Duration error: $e'); }
-
-      setState(() => _statusMessage = 'Generating video from image...');
-
-      final fal = FalAiService();
-      final videoUrl = await fal.generateVideoFromImage(imageUrl: imageUrl, prompt: 'A person speaking naturally with subtle head movements and natural facial expressions', durationSeconds: audioDurationSeconds);
-      debugPrint('✅ Video created: $videoUrl');
-
-      setState(() { _rawVideoUrl = videoUrl; _statusMessage = ''; _isGenerating = false; });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Video created!', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: const Color(0xFF2a5a2a)));
-    } catch (e) {
-      debugPrint('❌ Error: $e');
-      if (mounted) { setState(() { _isGenerating = false; _statusMessage = ''; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red)); }
-    }
-  }
-
-  Future<void> _stitchAudio() async {
-    if (_rawVideoUrl == null) return;
-    final audioPath = _recordedAudioPath ?? _uploadedAudioPath;
-    if (audioPath == null) return;
-    setState(() { _isGenerating = true; _statusMessage = 'Lip syncing audio with video...'; });
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      final audioFile = File(audioPath);
-      final audioBytes = await audioFile.readAsBytes();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final audioUrl = await StorageService.uploadAudioBytes(audioBytes, 'users/${user!.uid}/talking_head/recorded_$timestamp.m4a');
-      final lipSyncedUrl = await _lipSyncVideo(_rawVideoUrl!, audioUrl);
-      setState(() { _videoUrl = lipSyncedUrl; _statusMessage = ''; _isGenerating = false; });
-      _initVideoPlayer(lipSyncedUrl);
-    } catch (e) {
-      debugPrint('❌ Error: $e');
-      if (mounted) { setState(() { _isGenerating = false; _statusMessage = ''; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e', style: AppFonts.poppins(color: AppColors.white)), backgroundColor: Colors.red)); }
-    }
-  }
-
-  Future<String> _lipSyncVideo(String videoUrl, String audioUrl) async {
-    final remoteConfig = FirebaseRemoteConfig.instance;
-    await remoteConfig.fetchAndActivate();
-    final syncKey = remoteConfig.getString('synclabs_api_key');
-    if (syncKey.isEmpty) throw Exception('Sync Labs API key not configured');
-    debugPrint('🎬 Starting lip sync with Sync Labs...');
-    final response = await http.post(Uri.parse('https://api.sync.so/v2/generate'), headers: {'Content-Type': 'application/json', 'x-api-key': syncKey}, body: jsonEncode({'model': 'sync-3', 'input': [{'type': 'video', 'url': videoUrl}, {'type': 'audio', 'url': audioUrl}], 'options': {'sync_mode': 'loop'}}));
-    if (response.statusCode != 201 && response.statusCode != 200) throw Exception('Sync Labs API error: ${response.statusCode} ${response.body}');
-    final data = jsonDecode(response.body);
-    final generationId = data['id'];
-    if (generationId == null) throw Exception('No generation ID in Sync Labs response');
-    debugPrint('🆔 Sync Labs task submitted! ID: $generationId');
-    String status = data['status'] ?? 'PENDING';
-    int attempts = 0;
-    while (status != 'COMPLETED' && status != 'FAILED' && status != 'REJECTED' && attempts < 60) {
-      await Future.delayed(const Duration(seconds: 5));
-      attempts++;
-      final statusResponse = await http.get(Uri.parse('https://api.sync.so/v2/generate/$generationId'), headers: {'x-api-key': syncKey});
-      if (statusResponse.statusCode == 200) {
-        final statusData = jsonDecode(statusResponse.body);
-        status = statusData['status'] ?? 'PROCESSING';
-        debugPrint('📊 Sync Labs status: $status ($attempts/60)');
-        if (status == 'PROCESSING' || status == 'PENDING') setState(() => _statusMessage = 'Syncing lips... ($attempts/60)');
-      }
-    }
-    if (status == 'COMPLETED') {
-      final finalResponse = await http.get(Uri.parse('https://api.sync.so/v2/generate/$generationId'), headers: {'x-api-key': syncKey});
-      final finalData = jsonDecode(finalResponse.body);
-      final outputUrl = finalData['outputUrl'];
-      if (outputUrl != null) { debugPrint('✅ Lip sync completed: $outputUrl'); return outputUrl; }
-      throw Exception('No output URL in Sync Labs completed response');
-    }
-    throw Exception(status == 'FAILED' ? 'Lip sync failed' : 'Lip sync timed out');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -611,456 +275,528 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          _videoUrl != null ? 'TALKING HEAD REVIEW' : 'CREATE TALKING HEAD',
-          style: AppFonts.poppins(size: 14, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2),
+          'CREATE TALKING HEAD',
+          style: AppFonts.poppins(
+            size: 14,
+            weight: FontWeight.w700,
+            color: AppColors.gold,
+            letterSpacing: 2,
+          ),
         ),
         centerTitle: true,
       ),
-      body: _videoUrl != null ? _buildVideoResult() : _buildCreationForm(),
-    );
-  }
-
-  Widget _buildCreationForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-
-          // PHASE 1: Image
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.7), width: 1.5),
-              boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 30, spreadRadius: 1)],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. DYNAMIC IMAGE PREVIEW FRAME
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: 200,
+                  maxHeight: 340,
+                ),
+                child: AspectRatio(
+                  aspectRatio: _imageAspectRatio ?? (3 / 4),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141410),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: AppColors.gold.withValues(alpha: 0.7),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.gold.withValues(alpha: 0.25),
+                          blurRadius: 25,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: _cachedImage,
+                    ),
+                  ),
+                ),
+              ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: _cachedImage,
-            ),
-          ),
-          const SizedBox(height: 28),
 
-          // Mode selector (only before cloning)
-          if (_clonedVoiceId == null) ...[
-          Text('CHOOSE VOICE METHOD', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
-            ),
-            padding: const EdgeInsets.all(4),
-            child: Row(
+            const SizedBox(height: 24),
+
+            // 2. CHOOSE VIDEO STYLE
+            Row(
               children: [
-                Expanded(child: _buildModeOption('clone', 'Voice Cloning', Icons.record_voice_over)),
-                Expanded(child: _buildModeOption('record', 'Your Voice', Icons.mic)),
+                Text(
+                  'CHOOSE VIDEO STYLE',
+                  style: AppFonts.poppins(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: AppColors.gold,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.info_outline_rounded, color: AppColors.muted, size: 14),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-          ],
-
-          // Mode content
-          if (_creationMode == 'clone') ...[
-          // PHASE 2: Script + Voice Clone (UNCHANGED)
-          if (_clonedVoiceId == null) ...[
-            // Script input
-            Text('YOUR SCRIPT', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _scriptCtrl,
-              maxLines: 5,
-              style: AppFonts.poppins(size: 13, color: AppColors.white),
-              decoration: InputDecoration(
-                hintText: 'Write what your AI twin will say...',
-                hintStyle: AppFonts.poppins(size: 13, color: AppColors.muted.withValues(alpha: 0.5)),
-                filled: true,
-                fillColor: const Color(0xFF1A1A1A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.2)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildModelCard(
+                    title: 'Talking Head',
+                    subtitle: 'Podcast & Static Videos',
+                    icon: Icons.person_outline_rounded,
+                    isSelected: _selectedVideoModel == 'HeyGen',
+                    onTap: () => setState(() => _selectedVideoModel = 'HeyGen'),
+                    iconColor: const Color(0xFFD4AF37),
+                    subtitleColor: const Color(0xFFD4AF37),
+                  ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.2)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildModelCard(
+                    title: 'Dynamic Talking',
+                    subtitle: 'Natural Motion + Lip Sync',
+                    icon: Icons.directions_walk_rounded,
+                    isSelected: _selectedVideoModel == 'Kling 3.0 Pro' || _selectedVideoModel == 'Seedance 2.0',
+                    onTap: () => setState(() => _selectedVideoModel = 'Kling 3.0 Pro'),
+                    iconColor: const Color(0xFFA855F7),
+                    subtitleColor: const Color(0xFFC084FC),
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.gold, width: 1.5),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: _selectedVideoModel == 'HeyGen' ? const Color(0xFF0D1527) : const Color(0xFF160E24),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _selectedVideoModel == 'HeyGen' ? const Color(0xFF3B82F6).withValues(alpha: 0.4) : const Color(0xFFA855F7).withValues(alpha: 0.4),
+                  width: 0.8,
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-
-            // Voice recording
-            Text('RECORD YOUR VOICE', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
-            const SizedBox(height: 12),
-            Text(
-              'Record a 3-10 second sample. Then tap Clone Voice.',
-              style: AppFonts.poppins(size: 11, color: AppColors.muted.withValues(alpha: 0.7)),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: (_isGenerating || _isCloning) ? null : _toggleRecording,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _isRecording ? Colors.red.withValues(alpha: 0.15) : AppColors.gold.withValues(alpha: 0.1),
-                  border: Border.all(
-                    color: _isRecording ? Colors.red : AppColors.gold.withValues(alpha: 0.5),
-                    width: _isRecording ? 3 : 1.5,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    _selectedVideoModel == 'HeyGen' ? Icons.record_voice_over_rounded : Icons.directions_walk_rounded,
+                    size: 18,
+                    color: _selectedVideoModel == 'HeyGen' ? const Color(0xFF3B82F6) : const Color(0xFFA855F7),
                   ),
-                  boxShadow: _isRecording
-                      ? [BoxShadow(color: Colors.red.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 2)]
-                      : null,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _selectedVideoModel == 'HeyGen'
+                        ? Text(
+                            'Perfect for podcast style clips and static talking videos with natural facial expressions and accurate lip sync.\nNo motion prompt needed.',
+                            style: AppFonts.poppins(size: 11, color: const Color(0xFFD1D5DB), height: 1.4),
+                          )
+                        : Text.rich(
+                            TextSpan(
+                              style: AppFonts.poppins(size: 11, color: const Color(0xFFD1D5DB), height: 1.4),
+                              children: const [
+                                TextSpan(text: 'Create dynamic talking videos with natural body movement and gestures. Walk, sit, stand or interact naturally while speaking.\nIncludes '),
+                                TextSpan(text: 'Motion Library', style: TextStyle(color: Color(0xFFC084FC), fontWeight: FontWeight.w600)),
+                                TextSpan(text: ' and custom motion control.'),
+                              ],
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+
+            if (_selectedVideoModel != 'HeyGen') ...[
+              const SizedBox(height: 24),
+
+              // 3. PROMPT / DESCRIPTION INPUT
+              Text(
+                'WHAT DO YOU WANT TO HAPPEN?',
+                style: AppFonts.poppins(
+                  size: 10,
+                  weight: FontWeight.w700,
+                  color: AppColors.gold,
+                  letterSpacing: 1.5,
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _isRecording ? Icons.stop_rounded : Icons.mic,
-                      color: _isRecording ? Colors.red : AppColors.gold,
-                      size: 40,
-                    ),
-                    if (_isRecording) ...[
-                      const SizedBox(height: 4),
-                      ValueListenableBuilder<String>(
-                        valueListenable: _recordingDurationText,
-                        builder: (context, value, _) => Text(
-                          value,
-                          style: AppFonts.poppins(size: 11, color: Colors.red, weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.2), width: 0.8),
+                ),
+                child: TextField(
+                  controller: _promptCtrl,
+                  enabled: !_isGenerating,
+                  minLines: 3,
+                  maxLines: 5,
+                  maxLength: 500,
+                  style: AppFonts.poppins(size: 13, color: AppColors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Talk passionately with natural hand gestures...',
+                    hintStyle: AppFonts.poppins(size: 13, color: AppColors.muted.withValues(alpha: 0.5)),
+                    border: InputBorder.none,
+                    counterStyle: AppFonts.poppins(size: 10, color: AppColors.muted),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // 4. CHOOSE VISUAL STYLE
+              Text(
+                'CHOOSE VISUAL STYLE',
+                style: AppFonts.poppins(
+                  size: 10,
+                  weight: FontWeight.w700,
+                  color: AppColors.gold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _styles.length,
+                  separatorBuilder: (context, index) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final style = _styles[index];
+                    final isSelected = _selectedStyle == style.title;
+                    return GestureDetector(
+                      onTap: _isGenerating ? null : () => setState(() => _selectedStyle = style.title),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.gold.withValues(alpha: 0.18)
+                              : AppColors.surface,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: isSelected ? AppColors.gold : Colors.white.withValues(alpha: 0.12),
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: AppColors.gold.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                  )
+                                ]
+                              : [],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              style.icon,
+                              size: 16,
+                              color: isSelected ? AppColors.gold : const Color(0xFF9CA3AF),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              style.title,
+                              style: AppFonts.poppins(
+                                size: 13,
+                                weight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                color: isSelected ? Colors.white : const Color(0xFFD1D5DB),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ],
+                    );
+                  },
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (_isRecording)
-              Text('Tap to stop recording', style: AppFonts.poppins(size: 11, color: Colors.red.withValues(alpha: 0.7)))
-            else if (_recordedAudioPath != null)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle, color: const Color(0xFF2a5a2a), size: 16),
-                  const SizedBox(width: 6),
-                  Text('Recording ready!', style: AppFonts.poppins(size: 12, color: const Color(0xFF2a5a2a), weight: FontWeight.w600)),
-                ],
-              )
-            else
-              Text('Tap the mic to start recording', style: AppFonts.poppins(size: 11, color: AppColors.muted.withValues(alpha: 0.6))),
-            const SizedBox(height: 20),
-
-            // Status message
-            if (_statusMessage.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
-                ),
-                child: Row(children: [
-                  if (_isCloning || _isGenerating) ...[
-                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(child: Text(_statusMessage, style: AppFonts.poppins(size: 12, color: AppColors.gold))),
-                ]),
-              ),
-              const SizedBox(height: 20),
             ],
 
-            // Clone Voice button
-            SizedBox(
-              width: double.infinity,
-              child: GoldButton(
-                label: _isCloning ? 'CLONING VOICE...' : 'CLONE VOICE',
-                loading: _isCloning || _isGenerating,
-                onTap: (_isCloning || _isGenerating) ? null : _cloneVoice,
-              ),
-            ),
-          ] else ...[
-            // PHASE 3: Voice cloned - show create button
+            const SizedBox(height: 24),
+
+            // 5. VIDEO DURATION
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF2a5a2a).withValues(alpha: 0.1),
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF2a5a2a).withValues(alpha: 0.4), width: 1),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.2), width: 0.8),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.check_circle, color: const Color(0xFF2a5a2a), size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Voice Cloned & Speech Ready', style: AppFonts.poppins(size: 13, color: const Color(0xFF2a5a2a), weight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Text('Your voice has been cloned and the speech audio is generated.', style: AppFonts.poppins(size: 11, color: AppColors.muted)),
+                      Text(
+                        'VIDEO DURATION',
+                        style: AppFonts.poppins(
+                          size: 10,
+                          weight: FontWeight.w700,
+                          color: AppColors.gold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 0.5),
+                        ),
+                        child: Text(
+                          '${_durationSeconds.toInt()} sec',
+                          style: AppFonts.poppins(
+                            size: 12,
+                            weight: FontWeight.w700,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ),
                     ],
-                  )),
+                  ),
+                  const SizedBox(height: 8),
+                  SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: _isGenerating ? AppColors.muted : AppColors.gold,
+                      inactiveTrackColor: AppColors.gold.withValues(alpha: 0.15),
+                      thumbColor: _isGenerating ? AppColors.muted : AppColors.gold,
+                      overlayColor: AppColors.gold.withValues(alpha: 0.2),
+                      valueIndicatorColor: AppColors.gold,
+                      valueIndicatorTextStyle: AppFonts.poppins(
+                        color: AppColors.black,
+                        weight: FontWeight.w700,
+                        size: 11,
+                      ),
+                    ),
+                    child: Slider(
+                      value: _durationSeconds,
+                      min: 1.0,
+                      max: 15.0,
+                      divisions: 14,
+                      label: '${_durationSeconds.toInt()}s',
+                      onChanged: _isGenerating
+                          ? null
+                          : (val) {
+                              setState(() {
+                                _durationSeconds = val;
+                              });
+                            },
+                    ),
+                  ),
                 ],
               ),
             ),
+
             const SizedBox(height: 24),
 
-            // Status message (shows during creating video / lip syncing)
+            // STATUS MESSAGE OVERLAY
             if (_statusMessage.isNotEmpty) ...[
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.08),
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1),
                 ),
-                child: Row(children: [
-                  if (_isGenerating) ...[
-                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.gold),
+                    ),
                     const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _statusMessage,
+                        style: AppFonts.poppins(size: 12, color: AppColors.gold, weight: FontWeight.w500),
+                      ),
+                    ),
                   ],
-                  Expanded(child: Text(_statusMessage, style: AppFonts.poppins(size: 12, color: AppColors.gold))),
-                ]),
+                ),
               ),
               const SizedBox(height: 20),
             ],
 
+            // GENERATE BUTTON
             SizedBox(
               width: double.infinity,
-              child: GoldButton(
-                label: _isGenerating ? 'CREATING VIDEO...' : 'CREATE TALKING HEAD',
-                loading: _isGenerating,
-                onTap: _isGenerating ? null : _generateTalkingHead,
+              height: 54,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: _isGenerating ? null : _generateTalkingHeadVideo,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _selectedVideoModel == 'HeyGen' ? Icons.mic_rounded : Icons.auto_awesome,
+                      color: Colors.black,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _isGenerating
+                              ? (_selectedVideoModel == 'HeyGen' ? 'PREPARING AUDIO RECORDING...' : 'GENERATING DYNAMIC TALKING HEAD...')
+                              : (_selectedVideoModel == 'HeyGen' ? 'NEXT: RECORD AUDIO' : 'GENERATE DYNAMIC TALKING HEAD'),
+                          style: AppFonts.poppins(
+                            size: 13.5,
+                            weight: FontWeight.w800,
+                            color: Colors.black,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+
+            const SizedBox(height: 40),
           ],
-          ] else if (_creationMode == 'record') ...[
-            // Your Voice mode
-            Text('RECORD OR UPLOAD AUDIO', style: AppFonts.poppins(size: 9, weight: FontWeight.w700, color: AppColors.muted, letterSpacing: 2)),
-            const SizedBox(height: 8),
-            Text('Record directly or select an audio file from your device.', style: AppFonts.poppins(size: 11, color: AppColors.muted.withValues(alpha: 0.7)), textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-
-            // Mic button
-            GestureDetector(
-              onTap: (_isGenerating) ? null : _toggleRecording,
-              child: Container(
-                width: 120, height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _isRecording ? Colors.red.withValues(alpha: 0.15) : AppColors.gold.withValues(alpha: 0.1),
-                  border: Border.all(color: _isRecording ? Colors.red : AppColors.gold.withValues(alpha: 0.5), width: _isRecording ? 3 : 1.5),
-                  boxShadow: _isRecording ? [BoxShadow(color: Colors.red.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 2)] : null,
-                ),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(_isRecording ? Icons.stop_rounded : Icons.mic, color: _isRecording ? Colors.red : AppColors.gold, size: 40),
-                  if (_isRecording) ...[const SizedBox(height: 4), ValueListenableBuilder<String>(
-                    valueListenable: _recordingDurationText,
-                    builder: (context, value, _) => Text(value, style: AppFonts.poppins(size: 11, color: Colors.red, weight: FontWeight.w600)),
-                  )],
-                ]),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_isRecording)
-              Text('Tap to stop recording', style: AppFonts.poppins(size: 11, color: Colors.red.withValues(alpha: 0.7)))
-            else if (_recordedAudioPath != null || _uploadedAudioPath != null)
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.check_circle, color: const Color(0xFF2a5a2a), size: 16),
-                const SizedBox(width: 6),
-                Text('Audio ready!', style: AppFonts.poppins(size: 12, color: const Color(0xFF2a5a2a), weight: FontWeight.w600)),
-              ])
-            else
-              Text('Tap the mic to start recording', style: AppFonts.poppins(size: 11, color: AppColors.muted.withValues(alpha: 0.6))),
-            const SizedBox(height: 16),
-
-            // Upload from device
-            GestureDetector(
-              onTap: (_isGenerating) ? null : _pickAudioFromDevice,
-              child: Container(
-                width: double.infinity, padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.white.withValues(alpha: 0.1), width: 0.5),
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.audio_file_outlined, color: AppColors.muted, size: 20),
-                  const SizedBox(width: 10),
-                  Text('OR SELECT FROM DEVICE', style: AppFonts.poppins(size: 12, color: AppColors.muted)),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Status
-            if (_statusMessage.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3), width: 0.5),
-                ),
-                child: Row(children: [
-                  if (_isGenerating) ...[const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)), const SizedBox(width: 12)],
-                  Expanded(child: Text(_statusMessage, style: AppFonts.poppins(size: 12, color: AppColors.gold))),
-                ]),
-              ),
-              const SizedBox(height: 20),
-            ],
-
-            // Create Video + Lip Sync buttons
-            if (_rawVideoUrl == null && !_isGenerating)
-              SizedBox(width: double.infinity, child: GoldButton(label: 'CREATE VIDEO', onTap: _createVideoOnly)),
-            if (_rawVideoUrl != null && _videoUrl == null && !_isGenerating)
-              SizedBox(width: double.infinity, child: GoldButton(label: 'LIP SYNC', onTap: _stitchAudio)),
-          ],
-          const SizedBox(height: 16),
-
-          SizedBox(
-            width: double.infinity,
-            child: GoldButton(
-              label: 'BACK TO HOME',
-              outlined: true,
-              onTap: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MainShell()),
-                  (route) => false,
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildVideoResult() {
-    return Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: _videoController != null && _videoController!.value.isInitialized
-                  ? Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(26),
-                        border: Border.all(color: AppColors.gold.withValues(alpha: 0.7), width: 1.5),
-                        boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 30, spreadRadius: 1)],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: AspectRatio(
-                          aspectRatio: _videoController!.value.aspectRatio,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              VideoPlayer(_videoController!),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _videoController!.value.isPlaying ? _videoController!.pause() : _videoController!.play();
-                                  });
-                                },
-                                child: Container(
-                                  width: 60, height: 60,
-                                  decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.gold.withValues(alpha: 0.8)),
-                                  child: Icon(_videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow, color: AppColors.black, size: 30),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  : const CircularProgressIndicator(color: AppColors.gold),
+  Widget _buildModelCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color iconColor,
+    required Color subtitleColor,
+  }) {
+    return GestureDetector(
+      onTap: _isGenerating ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? iconColor.withValues(alpha: 0.08) : const Color(0xFF161616),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? iconColor : Colors.white.withValues(alpha: 0.1),
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: iconColor.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                  )
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? iconColor : AppColors.muted.withValues(alpha: 0.6),
+              size: 16,
             ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: () => setState(() => _saveToGallery = !_saveToGallery),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.white.withValues(alpha: 0.1), width: 0.5),
-                  ),
-                  child: Row(children: [
-                    Container(
-                      width: 22, height: 22,
-                      decoration: BoxDecoration(
-                        color: _saveToGallery ? AppColors.gold : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _saveToGallery ? AppColors.gold : AppColors.white.withValues(alpha: 0.3), width: 1.5),
-                      ),
-                      child: _saveToGallery ? const Icon(Icons.check, color: AppColors.black, size: 14) : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Save to Gallery', style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: AppColors.white)),
-                        Text(_saveToGallery ? 'Download to your device' : 'Upload to your Twinora library', style: AppFonts.poppins(size: 11, color: AppColors.muted)),
-                      ],
-                    )),
-                    Icon(_saveToGallery ? Icons.download : Icons.cloud_upload, color: AppColors.gold.withValues(alpha: 0.6), size: 20),
-                  ]),
-                ),
+            const SizedBox(width: 6),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: iconColor.withValues(alpha: 0.15),
               ),
-              const SizedBox(height: 16),
-              Row(children: [
-                Expanded(child: GoldButton(label: _isSaving ? 'SAVING...' : 'SAVE VIDEO', loading: _isSaving, onTap: _isSaving ? null : _saveVideo)),
-                const SizedBox(width: 12),
-                Expanded(child: GoldButton(label: 'REGENERATE', outlined: true, onTap: () {
-                  setState(() { _videoUrl = null; _videoController?.dispose(); _videoController = null; });
-                })),
-              ]),
-            ],
-          ),
+              child: Center(
+                child: Icon(icon, color: iconColor, size: 15),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: AppFonts.poppins(size: 11, weight: FontWeight.w700, color: Colors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: AppFonts.poppins(
+                      size: 8.5,
+                      weight: FontWeight.w500,
+                      color: isSelected ? subtitleColor : AppColors.muted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildImageDisplay() {
-    if (_imageUrl.startsWith('data:image')) {
-      try {
-        final base64Str = _imageUrl.split(',')[1];
-        final bytes = base64Decode(base64Str);
-        return Image.memory(bytes, fit: BoxFit.cover, height: 300, width: double.infinity);
-      } catch (e) {
-        return _imagePlaceholder();
-      }
-    } else if (_imageUrl.startsWith('https://')) {
-      return Image.network(
-        _imageUrl,
-        fit: BoxFit.cover,
-        height: 300,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) => _imagePlaceholder(),
+    if (widget.initialImage != null) {
+      return Image.file(
+        widget.initialImage!,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
       );
     }
-    return _imagePlaceholder();
-  }
 
-  Widget _imagePlaceholder() => Container(
-    height: 300,
-    color: AppColors.surface,
-    child: const Icon(Icons.image_not_supported_outlined, color: AppColors.muted, size: 60),
-  );
+    final url = _imageUrl;
+    if (url.startsWith('data:image')) {
+      final base64Str = url.split(',')[1];
+      final bytes = base64Decode(base64Str);
+      return Image.memory(
+        bytes,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+      );
+    } else if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: AppColors.surface,
+          child: const Center(child: Icon(Icons.broken_image, color: AppColors.muted, size: 40)),
+        ),
+      );
+    } else if (url.isNotEmpty) {
+      return Image.file(
+        File(url),
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: AppColors.surface,
+          child: const Center(child: Icon(Icons.person, color: AppColors.gold, size: 40)),
+        ),
+      );
+    }
+
+    return Container(
+      color: AppColors.surface,
+      child: const Center(child: Icon(Icons.image, color: AppColors.gold, size: 40)),
+    );
+  }
 }

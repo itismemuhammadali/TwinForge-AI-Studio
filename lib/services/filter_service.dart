@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 class FilterService {
@@ -29,7 +29,7 @@ class FilterService {
       
       return Uint8List.fromList(img.encodeJpg(filtered));
     } catch (e) {
-      print('Error applying filter: $e');
+      debugPrint('Error applying filter: $e');
       return imageBytes;
     }
   }

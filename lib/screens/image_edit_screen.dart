@@ -10,7 +10,7 @@ import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
 import '../services/storage_service.dart';
 import 'talking_head_creation_screen.dart';
-import 'broll_screen.dart';
+import 'ai_video_story_creation_screen.dart';
 import 'main_shell.dart';
 
 class ImageEditScreen extends StatefulWidget {
@@ -227,7 +227,7 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
                     label: 'TURN INTO B-ROLL',
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => BrollScreen(content: widget.content),
+                        builder: (_) => AiVideoStoryCreationScreen(content: widget.content),
                       ));
                     },
                   ),

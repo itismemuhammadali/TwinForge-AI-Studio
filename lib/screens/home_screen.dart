@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../providers/user_provider.dart';
 import 'generate_screen.dart';
 import 'library_screen.dart';
-import 'carousel_screen.dart';
+import 'carousel_options_screen.dart';
 import 'broll_entry_point_screen.dart';
-import 'talking_head_screen.dart';
+import 'talking_heads/talking_head_image_review_screen.dart';
 import 'subscription_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -31,8 +33,13 @@ class HomeScreen extends StatelessWidget {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(Icons.bolt, color: AppColors.gold, size: 12),
                 const SizedBox(width: 4),
-                Text('16 Credits',
-                    style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+                Consumer<UserProvider>(
+                  builder: (context, userProvider, _) {
+                    final credits = userProvider.credits ?? 0;
+                    return Text('$credits Credits',
+                        style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold));
+                  },
+                ),
               ]),
             ),
           ),
@@ -104,7 +111,7 @@ class HomeScreen extends StatelessWidget {
               title: 'Carousel Generator',
               subtitle: 'Turn images into ready-to-post social media carousels.',
               tag: 'PHASE 2',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CarouselScreen())),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CarouselOptionsScreen())),
             ),
             const SizedBox(height: 12),
             _FeatureCard(
@@ -122,7 +129,7 @@ class HomeScreen extends StatelessWidget {
               title: 'Talking Head Video',
               subtitle: 'Upload image, write a script, generate a complete AI video.',
               tag: 'PHASE 3',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkingHeadScreen())),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkingHeadImageReviewScreen(imageSource: 'file', imageData: null))),
             ),
             const SizedBox(height: 32),
             GoldButton(

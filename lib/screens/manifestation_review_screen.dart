@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gal/gal.dart';
 import '../theme/app_theme.dart';
 import '../models/generated_content.dart';
-import 'talking_head_screen.dart';
+import 'talking_heads/talking_head_image_review_screen.dart';
 
 class ManifestationReviewScreen extends StatefulWidget {
   final GeneratedContent content;
@@ -96,14 +96,14 @@ class _ManifestationReviewScreenState extends State<ManifestationReviewScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))],
@@ -115,7 +115,6 @@ class _ManifestationReviewScreenState extends State<ManifestationReviewScreen> {
                 ),
               ),
             ),
-          ),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
             decoration: BoxDecoration(
@@ -168,7 +167,7 @@ class _ManifestationReviewScreenState extends State<ManifestationReviewScreen> {
                 const SizedBox(height: 12),
                 // Turn into Talking Head
                 GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkingHeadScreen())),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkingHeadImageReviewScreen(imageSource: 'file', imageData: null))),
                   child: Container(
                     width: double.infinity, height: 52,
                     decoration: BoxDecoration(
@@ -188,7 +187,8 @@ class _ManifestationReviewScreenState extends State<ManifestationReviewScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildImage() {

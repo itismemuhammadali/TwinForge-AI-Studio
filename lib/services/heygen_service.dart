@@ -118,4 +118,71 @@ class HeyGenService {
       rethrow;
     }
   }
+
+  /// High-level Image-to-Video generation using HeyGen v3 API
+  static Future<String> generateVideoFromImage({
+    required String imageUrl,
+    required String prompt,
+    String? audioUrl,
+  }) async {
+    try {
+      debugLog('🎬 Initiating HeyGen Image-to-Video generation...');
+      
+      // Ensure Remote Config initialization
+      try {
+        if (apiKey.isEmpty) {
+          await initialize();
+        }
+      } catch (_) {
+        await initialize();
+      }
+
+      String finalAudioUrl = audioUrl ?? '';
+
+      if (finalAudioUrl.isEmpty) {
+        finalAudioUrl = 'https://firebasestorage.googleapis.com/v0/b/aimr-twin-studio.firebasestorage.app/o/public%2Fsample_narration.mp3?alt=media';
+      }
+
+      final heygen = HeyGenService();
+      final videoId = await heygen.createPhotoTalkingHeadVideo(
+        imageUrl: imageUrl,
+        audioUrl: finalAudioUrl,
+      );
+
+      // Poll until finished
+      debugLog('⏳ Polling HeyGen video status for ID: $videoId...');
+      String status = 'processing';
+      String? failureMessage;
+      int attempts = 0;
+      while ((status == 'processing' || status == 'waiting' || status == 'pending') && attempts < 60) {
+        await Future.delayed(const Duration(seconds: 4));
+        attempts++;
+        final statusData = await heygen.getVideoStatus(videoId: videoId);
+        final dataMap = statusData['data'] is Map ? statusData['data'] : statusData;
+        status = dataMap?['status']?.toString() ?? 'processing';
+        if (dataMap?['failure_message'] != null) {
+          failureMessage = dataMap['failure_message'].toString();
+        }
+      }
+
+      if (status == 'completed') {
+        final statusData = await heygen.getVideoStatus(videoId: videoId);
+        final dataMap = statusData['data'] is Map ? statusData['data'] : statusData;
+        final videoDownloadUrl = dataMap?['video_url'];
+        if (videoDownloadUrl != null && videoDownloadUrl.toString().isNotEmpty) {
+          debugLog('✅ HeyGen video generated successfully: $videoDownloadUrl');
+          return videoDownloadUrl.toString();
+        }
+      }
+      
+      if (failureMessage != null && failureMessage.isNotEmpty) {
+        throw Exception('HeyGen API error: $failureMessage');
+      }
+      
+      throw Exception('HeyGen generation ended with status: $status');
+    } catch (e) {
+      debugLog('❌ HeyGen generation failed: $e');
+      rethrow;
+    }
+  }
 }

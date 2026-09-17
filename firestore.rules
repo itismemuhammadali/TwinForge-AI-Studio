@@ -13,7 +13,7 @@ service cloud.firestore {
       // Allow any update from authenticated user (simplified for Phase 1)
       allow update: if request.auth != null && request.auth.uid == userId;
       
-      allow delete: if false;
+      allow delete: if request.auth != null && request.auth.uid == userId;
 
       // ===== SUBCOLLECTIONS =====
       
@@ -84,6 +84,38 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId;
       allow delete: if false;
+    }
+
+    // ===== USAGE LOGS =====
+    match /usage_logs/{logId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+
+    // ===== GENERATED HOLIDAY COLLECTION =====
+    match /generated_holiday/{holidayId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
+
+    // ===== PURCHASES TRACKING =====
+    match /purchases/{purchaseId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ===== SUPPORT TICKETS =====
+    match /support_tickets/{ticketId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ===== CONTENT REPORTS (App Store Guideline 1.2) =====
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && resource.data.reporterUid == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }

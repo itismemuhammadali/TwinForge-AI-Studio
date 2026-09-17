@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../constants/legal_links.dart';
 import 'register_screen.dart';
 import 'main_shell.dart';
 import 'forgot_password_screen.dart';
@@ -137,7 +139,9 @@ class _LoginScreenState extends State<LoginScreen>
                       _buildHero(),
                       const SizedBox(height: 32),
                       _buildFormCard(),
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 20),
+                      _buildLegalFooter(),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -504,6 +508,51 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
       ),
+    );
+  }
+
+  Future<void> _openLegalUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching legal link: $e');
+    }
+  }
+
+  Widget _buildLegalFooter() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 6,
+      children: [
+        GestureDetector(
+          onTap: () => _openLegalUrl(LegalLinks.termsOfUseUrl),
+          child: Text(
+            'Terms of Use (EULA)',
+            style: AppFonts.poppins(
+              size: 11,
+              color: AppColors.muted,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+        Text('•', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+        GestureDetector(
+          onTap: () => _openLegalUrl(LegalLinks.privacyPolicyUrl),
+          child: Text(
+            'Privacy Policy',
+            style: AppFonts.poppins(
+              size: 11,
+              color: AppColors.muted,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

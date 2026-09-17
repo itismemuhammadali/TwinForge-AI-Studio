@@ -9,6 +9,7 @@ import '../providers/user_provider.dart';
 import 'package:provider/provider.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
+import 'carousel_editor_screen.dart';
 
 class CarouselImageSwapScreen extends StatefulWidget {
   final List<File> userImages;
@@ -87,15 +88,9 @@ class _CarouselImageSwapScreenState extends State<CarouselImageSwapScreen> {
 
     debugLog('✅ All slots filled. Proceeding to overlay editor...');
     
-    // TODO: Navigate to carousel overlay editor when created
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Overlay editor coming next! (Currently in development)',
-          style: AppFonts.poppins(color: AppColors.white),
-        ),
-        backgroundColor: AppColors.gold.withValues(alpha: 0.8),
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CarouselEditorScreen()),
     );
   }
 
@@ -255,7 +250,6 @@ class _CarouselImageSwapScreenState extends State<CarouselImageSwapScreen> {
             ),
           ),
 
-          // Slot overlays with TEMPLATE IMAGES showing
           ...slots.map((slot) {
             final hasUserImage = _slotMappings.containsKey(slot.index);
             final isSelected = _selectedSlotIndex == slot.index;
@@ -362,7 +356,7 @@ class _CarouselImageSwapScreenState extends State<CarouselImageSwapScreen> {
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

@@ -1,4 +1,4 @@
-package com.example.ai_video_image_generation_app
+package com.twinora.app
 
 import android.content.Intent
 import android.net.Uri

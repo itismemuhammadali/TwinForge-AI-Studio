@@ -4,27 +4,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
-import '../constants/studio_options.dart';
 import '../models/generated_content.dart';
 import '../services/stock_image_service.dart';
 import '../services/fal_ai_service.dart';
 import '../services/storage_service.dart';
 import 'package:video_player/video_player.dart';
-import 'video_review_screen.dart';
-
-import 'profile_screen.dart';
+import 'broll_video_review_screen.dart';
 
 class BrollScreen extends StatefulWidget {
   final GeneratedContent? content;
-  const BrollScreen({super.key, this.content});
+  final File? initialImage;
+  const BrollScreen({super.key, this.content, this.initialImage});
   @override
   State<BrollScreen> createState() => _BrollScreenState();
 }
 
 class _BrollScreenState extends State<BrollScreen> {
-  String _motionStyle = StudioOptions.motionStyles[0];
   bool _hasImage = false;
-  int _selectedDuration = 5;
   File? _localImage;
   int? _selectedTemplateIndex;
   bool _isGenerating = false;
@@ -35,8 +31,11 @@ class _BrollScreenState extends State<BrollScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.content != null) {
+    if (widget.content != null || widget.initialImage != null) {
       _hasImage = true;
+      if (widget.initialImage != null) {
+        _localImage = widget.initialImage;
+      }
     }
     _loadTemplates();
   }
@@ -109,8 +108,9 @@ class _BrollScreenState extends State<BrollScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => VideoReviewScreen(
+            builder: (_) => BrollVideoReviewScreen(
               videoUrl: resultUrl,
+              durationSeconds: 10,
               prompt: 'B-Roll Face Swap with template: ${_templates[_selectedTemplateIndex!].title}',
             ),
           ),

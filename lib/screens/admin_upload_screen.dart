@@ -380,39 +380,7 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
     );
   }
 
-  Widget _buildOverlayPromptField() {
-    return TextField(
-      controller: _overlayPromptController,
-      maxLines: 4,
-      style: GoogleFonts.poppins(
-        fontSize: 14,
-        fontWeight: FontWeight.w300,
-        color: AppColors.text,
-      ),
-      cursorColor: AppColors.gold,
-      decoration: InputDecoration(
-        hintText: 'E.g. Title "SUCCESS" at top center, large bold white font...\nSubtitle "Your journey starts here" at bottom, small gold font...',
-        hintStyle: AppFonts.poppins(size: 13, color: AppColors.muted.withValues(alpha: 0.5)),
-        filled: true,
-        fillColor: Colors.black.withValues(alpha: 0.4),
-        contentPadding: const EdgeInsets.all(16),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: AppColors.white.withValues(alpha: 0.05),
-            width: 0.8,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: AppColors.gold.withValues(alpha: 0.4),
-            width: 1,
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildUploadButton() {
     return GestureDetector(

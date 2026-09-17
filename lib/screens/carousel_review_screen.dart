@@ -10,7 +10,6 @@ import '../widgets/app_widgets.dart';
 import '../models/carousel_models.dart';
 import '../providers/content_provider.dart';
 import '../services/carousel_export_service.dart';
-import 'main_shell.dart';
 
 class CarouselReviewScreen extends StatefulWidget {
   final Carousel carousel;
@@ -73,6 +72,7 @@ class _CarouselReviewScreenState extends State<CarouselReviewScreen> {
       };
 
       // 4. Save to Firestore
+      if (!mounted) return;
       final contentProvider = context.read<ContentProvider>();
       await contentProvider.saveContent(user.uid, carouselData);
 
@@ -109,12 +109,6 @@ class _CarouselReviewScreenState extends State<CarouselReviewScreen> {
             ),
             backgroundColor: Colors.green,
           ),
-        );
-        
-        // Navigate to MainShell
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
         );
       }
     } catch (e) {
@@ -195,7 +189,7 @@ class _CarouselReviewScreenState extends State<CarouselReviewScreen> {
                           return Image.network(
                             slide.backgroundImageUrl ?? '',
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(color: AppColors.surface),
+                            errorBuilder: (_, _, _) => Container(color: AppColors.surface),
                           );
                         },
                       ),

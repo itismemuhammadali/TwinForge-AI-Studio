@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class UserProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userDocSubscription;
 
   String? _userGender;
   String? _displayName;
@@ -33,26 +36,31 @@ class UserProvider extends ChangeNotifier {
   }
 
   void _initializeUser() {
-    _auth.authStateChanges().listen((user) {
+    _authSubscription = _auth.authStateChanges().listen((user) {
+      _userDocSubscription?.cancel();
       if (user != null) {
-        _fetchUserData(user.uid);
+        _listenToUserData(user.uid);
       } else {
         _userGender = null;
         _displayName = null;
         _email = null;
         _bio = null;
+        _profileImageUrl = null;
+        _subscription = null;
+        _credits = null;
+        _imagesUsedToday = null;
         notifyListeners();
       }
     });
   }
 
-  Future<void> _fetchUserData(String uid) async {
-    _isLoading = true;
+  void _listenToUserData(String uid) {
+    if (_displayName == null) {
+      _isLoading = true;
+    }
     _errorMessage = null;
-    notifyListeners();
 
-    try {
-      final doc = await _firestore.collection('users').doc(uid).get();
+    _userDocSubscription = _firestore.collection('users').doc(uid).snapshots().listen((doc) {
       if (doc.exists) {
         final data = doc.data();
         _userGender = data?['gender'] ?? 'Female';
@@ -68,18 +76,20 @@ class UserProvider extends ChangeNotifier {
         _displayName = _auth.currentUser?.displayName ?? 'User';
         _email = _auth.currentUser?.email ?? '';
         _bio = '';
+        _subscription = 'free_trial';
+        _credits = 0;
       }
       _isLoading = false;
       notifyListeners();
-    } catch (e) {
+    }, onError: (e) {
       _errorMessage = 'Failed to fetch user data: $e';
-      _userGender = 'Female';
-      _displayName = _auth.currentUser?.displayName ?? 'User';
-      _email = _auth.currentUser?.email ?? '';
-      _bio = '';
       _isLoading = false;
       notifyListeners();
-    }
+    });
+  }
+
+  Future<void> fetchUserData(String uid) async {
+    _listenToUserData(uid);
   }
 
   void updateProfileImageUrl(String url) {
@@ -97,6 +107,29 @@ class UserProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  /// Deduct credits safely. Allows credits to go below 0.
+  Future<bool> deductCredits(int amount) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+
+    final current = _credits ?? 0;
+    final newCredits = current - amount;
+
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'credits': newCredits,
+        'imagesUsedToday': FieldValue.increment(amount),
+        'usageDate': DateTime.now().toIso8601String().split('T')[0],
+      });
+      _credits = newCredits;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deducting credits: $e');
+      return false;
+    }
   }
 
   Future<void> updateUserGender(String gender) async {
@@ -138,5 +171,12 @@ class UserProvider extends ChangeNotifier {
       _errorMessage = 'Failed to update profile: $e';
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _userDocSubscription?.cancel();
+    super.dispose();
   }
 }

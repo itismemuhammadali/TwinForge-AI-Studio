@@ -2,85 +2,18 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // ===== PROFILE IMAGES =====
-    match /users/{userId}/profile/{allPaths=**} {
-      // Allow users to read their own profile images
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow users to upload/update their own profile images
+    // ===== USER DATA (Public read so external AI APIs like HeyGen, Kling, Seedance can download inputs) =====
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 5 * 1024 * 1024 // Max 5MB
-        && request.resource.contentType.matches('image/.*'); // Only images
-    }
-
-    // ===== GENERATED IMAGES =====
-    match /users/{userId}/generatedImages/{imageId} {
-      // Allow users to read their own generated images
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow users to upload generated images
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
-        && request.resource.contentType.matches('image/.*'); // Only images
-      
-      // Allow users to delete their own generated images
+        && request.resource.size < 100 * 1024 * 1024;
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ===== EDITED IMAGES =====
-    match /users/{userId}/edits/{imageId} {
-      // Allow users to read their own edited images
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow users to upload edited images
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
-        && request.resource.contentType.matches('image/.*'); // Only images
-      
-      // Allow users to delete their own edited images
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // ===== GENERATED VIDEOS =====
-    match /users/{userId}/generatedVideos/{videoId} {
-      // Allow users to read their own generated videos
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow users to upload generated videos
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 100 * 1024 * 1024 // Max 100MB
-        && request.resource.contentType.matches('video/.*'); // Only videos
-      
-      // Allow users to delete their own generated videos
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // ===== REFERENCE IMAGES (Selfies) =====
-    match /users/{userId}/referenceImages/{imageId} {
-      // Allow users to read their own reference images
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow users to upload reference images (selfies)
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 5 * 1024 * 1024 // Max 5MB
-        && request.resource.contentType.matches('image/.*'); // Only images
-      
-      // Allow users to delete their own reference images
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // ===== GENERATED CAROUSELS (ZIP files) =====
-    match /users/{userId}/generatedCarousels/{carouselId} {
-      // Allow users to read their own generated carousels
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow users to upload carousel ZIP files
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 50 * 1024 * 1024 // Max 50MB for ZIP
-        && request.resource.contentType == 'application/zip'; // Only ZIP files
-      
-      // Allow users to delete their own carousels
-      allow delete: if request.auth != null && request.auth.uid == userId;
+    // ===== PUBLIC ASSETS (Fallback audio, public assets) =====
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
     // ===== ADMIN CONTENT =====
@@ -101,14 +34,6 @@ service firebase.storage {
       
       // Only allow authenticated users to write (for future admin uploads)
       allow write: if false; // Disable for now, enable for admin panel later
-    }
-
-    // ===== TALKING HEAD (images + audio) =====
-    match /users/{userId}/talking_head/{allPaths=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 50 * 1024 * 1024;
-      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     // ===== DENY ALL OTHER ACCESS =====

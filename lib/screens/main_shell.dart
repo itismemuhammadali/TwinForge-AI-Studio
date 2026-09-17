@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'explore_screen.dart';
 import 'photoshoot_screen.dart';
-import 'video_coming_soon_screen.dart';
 import 'edit_screen.dart';
 import 'library_screen.dart';
 
@@ -18,7 +17,6 @@ class _MainShellState extends State<MainShell> {
   final List<Widget> _screens = const [
     ExploreScreen(),
     PhotoshootScreen(),
-    VideoComingSoonScreen(),
     EditScreen(),
     LibraryScreen(fromBottomNav: true),
   ];
@@ -55,9 +53,8 @@ class _MainShellState extends State<MainShell> {
             children: [
               _navItem(0, Icons.explore_outlined, 'Explore'),
               _navItem(1, Icons.camera_alt_outlined, 'Shoot'),
-              _navItem(2, Icons.play_circle_outline, 'Video'),
-              _navItem(3, Icons.tune, 'Edit'),
-              _navItem(4, Icons.photo_library_outlined, 'Library'),
+              _navItem(2, Icons.tune, 'Edit'),
+              _navItem(3, Icons.photo_library_outlined, 'Library'),
             ],
           ),
         ),

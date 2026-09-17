@@ -52,4 +52,7 @@ app.*.map.json
 *.pem
 google-services.json
 firebase-key.json
+remoteconfig.json
 .aider*
+.mimocode/
+/android/build/

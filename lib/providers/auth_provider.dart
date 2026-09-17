@@ -125,7 +125,13 @@ class AuthProvider extends ChangeNotifier {
 
       return true;
     } on FirebaseAuthException catch (e) {
-      _errorMessage = e.message ?? 'Sign in failed';
+      if (e.code == 'user-not-found' ||
+          e.code == 'invalid-credential' ||
+          (e.message != null && (e.message!.contains('user-not-found') || e.message!.contains('no user record')))) {
+        _errorMessage = 'This account does not exist anymore. Please sign up or check your credentials.';
+      } else {
+        _errorMessage = e.message ?? 'Sign in failed';
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -167,6 +173,51 @@ class AuthProvider extends ChangeNotifier {
     await _firebaseService.signOut();
     _currentUser = null;
     notifyListeners();
+  }
+
+  /// Permanently deletes all generated content, library items, notifications,
+  /// and activity history for the current user while preserving their login account.
+  Future<bool> deleteUserData() async {
+    final uid = _currentUser?.uid;
+    if (uid == null) return false;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await _firebaseService.deleteUserData(uid);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to delete user data: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Permanently deletes the account and all associated data.
+  Future<bool> deleteAccount() async {
+    try {
+      await FCMService().onUserLogout();
+      await _firebaseService.deleteAccount();
+      _currentUser = null;
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        _errorMessage = 'requires-recent-login';
+      } else {
+        _errorMessage = e.message ?? 'Failed to delete account';
+      }
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> sendEmailVerification() async {

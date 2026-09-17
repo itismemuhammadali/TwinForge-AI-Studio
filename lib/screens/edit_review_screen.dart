@@ -3,15 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
-import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
 import '../providers/content_provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:gal/gal.dart';
-import 'library_screen.dart';
-import 'main_shell.dart';
 
 class EditReviewScreen extends StatefulWidget {
   final File editedFile;
@@ -28,7 +24,6 @@ class EditReviewScreen extends StatefulWidget {
 }
 
 class _EditReviewScreenState extends State<EditReviewScreen> {
-  bool _keepEdited = true;
   bool _downloadToGallery = false;
   bool _isSaving = false;
 
@@ -63,6 +58,7 @@ class _EditReviewScreenState extends State<EditReviewScreen> {
       );
 
       // Save to database
+      if (!mounted) return;
       final contentProvider = context.read<ContentProvider>();
       await contentProvider.saveContent(
         user.uid,
@@ -87,12 +83,6 @@ class _EditReviewScreenState extends State<EditReviewScreen> {
             ),
             backgroundColor: Colors.green,
           ),
-        );
-        
-        // Navigate to MainShell (with bottom nav bar)
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
         );
       }
     } catch (e) {
@@ -175,8 +165,7 @@ class _EditReviewScreenState extends State<EditReviewScreen> {
                     borderRadius: BorderRadius.circular(24),
                     child: Image.file(
                       widget.editedFile,
-                      fit: BoxFit.cover,
-                      height: 380,
+                      fit: BoxFit.contain,
                       width: double.infinity,
                     ),
                   ),

@@ -11,7 +11,6 @@ import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../models/generated_content.dart';
 import '../providers/content_provider.dart';
-import 'main_shell.dart';
 
 class VideoReviewScreen extends StatefulWidget {
   final String videoUrl;
@@ -111,6 +110,7 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
       contentMap['type'] = 'video';
 
       // 4. Save to database
+      if (!mounted) return;
       final contentProvider = context.read<ContentProvider>();
       await contentProvider.saveContent(
         user.uid,
@@ -139,12 +139,6 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
             ),
             backgroundColor: Colors.green,
           ),
-        );
-        
-        // Navigate to MainShell
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
         );
       }
     } catch (e) {
@@ -198,6 +192,28 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
               ),
               const SizedBox(height: 32),
 
+              // CREATION TIME BADGE
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.access_time_rounded, color: AppColors.gold, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Created Just Now',
+                      style: AppFonts.poppins(size: 11, weight: FontWeight.w600, color: AppColors.gold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Video Preview
               Container(
                 decoration: BoxDecoration(
@@ -224,15 +240,10 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
                         ? AspectRatio(
                             aspectRatio: _controller.value.aspectRatio,
                             child: Stack(
-                              alignment: Alignment.bottomCenter,
+                              alignment: Alignment.center,
                               children: [
                                 VideoPlayer(_controller),
-                                VideoProgressIndicator(_controller, allowScrubbing: true),
-                                Positioned(
-                                  top: 0,
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
+                                Positioned.fill(
                                   child: GestureDetector(
                                     onTap: () {
                                       setState(() {
@@ -260,6 +271,53 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
                                           ),
                                         ),
                                       ),
+                                    ),
+                                  ),
+                                ),
+                                // PROGRESS BAR & TIMESTAMP OVERLAY AT BOTTOM
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        VideoProgressIndicator(
+                                          _controller,
+                                          allowScrubbing: true,
+                                          colors: const VideoProgressColors(
+                                            playedColor: AppColors.gold,
+                                            bufferedColor: Colors.white30,
+                                            backgroundColor: Colors.white12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        ValueListenableBuilder<VideoPlayerValue>(
+                                          valueListenable: _controller,
+                                          builder: (context, value, child) {
+                                            final pos = value.position;
+                                            final dur = value.duration;
+                                            final posStr = '${pos.inMinutes.remainder(60).toString().padLeft(2, '0')}:${pos.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+                                            final durStr = '${dur.inMinutes.remainder(60).toString().padLeft(2, '0')}:${dur.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+                                            return Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(posStr, style: AppFonts.poppins(size: 10, color: Colors.white70)),
+                                                Text(durStr, style: AppFonts.poppins(size: 10, color: Colors.white70)),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),

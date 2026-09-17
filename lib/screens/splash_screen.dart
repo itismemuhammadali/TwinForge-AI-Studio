@@ -8,6 +8,7 @@ import '../services/gemini_service.dart';
 import '../services/fal_ai_service.dart';
 import '../services/eleven_labs_service.dart';
 import '../services/heygen_service.dart';
+import '../utils/permission_helper.dart';
 import 'onboarding_screen.dart';
 import 'main_shell.dart';
 import 'admin_portal_screen.dart';
@@ -120,6 +121,9 @@ class _SplashScreenState extends State<SplashScreen>
         }),
       ]);
       
+      // Request initial runtime permissions (Photos, Storage, Camera, Microphone, Notifications)
+      PermissionHelper.requestStartupPermissions();
+
       debugPrint('✅ All services initialized');
     } catch (e) {
       debugPrint('❌ Firebase initialization error: $e');

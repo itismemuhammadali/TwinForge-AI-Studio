@@ -1,0 +1,244 @@
+{
+  "identifier" : "B29B2735",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "1001",
+      "localizations" : [
+        {
+          "description" : "250 Twinora AI generation credits",
+          "displayName" : "250 Credits Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "twinora_credits_250",
+      "referenceName" : "250 Credits",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "28.99",
+      "familyShareable" : false,
+      "internalID" : "1002",
+      "localizations" : [
+        {
+          "description" : "500 Twinora AI generation credits",
+          "displayName" : "500 Credits Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "twinora_credits_500",
+      "referenceName" : "500 Credits",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "54.99",
+      "familyShareable" : false,
+      "internalID" : "1003",
+      "localizations" : [
+        {
+          "description" : "1,000 Twinora AI generation credits",
+          "displayName" : "1,000 Credits Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "twinora_credits_1000",
+      "referenceName" : "1,000 Credits",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "104.99",
+      "familyShareable" : false,
+      "internalID" : "1004",
+      "localizations" : [
+        {
+          "description" : "2,000 Twinora AI generation credits",
+          "displayName" : "2,000 Credits Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "twinora_credits_2000",
+      "referenceName" : "2,000 Credits",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "198.99",
+      "familyShareable" : false,
+      "internalID" : "1005",
+      "localizations" : [
+        {
+          "description" : "4,000 Twinora AI generation credits",
+          "displayName" : "4,000 Credits Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "twinora_credits_4000",
+      "referenceName" : "4,000 Credits",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21474836",
+      "localizations" : [
+        {
+          "description" : "Twinora AI Creator Subscriptions",
+          "displayName" : "Twinora Memberships",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Twinora Subscriptions",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "27.00",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "2001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "600 monthly credits and essential studio features",
+              "displayName" : "Twinora Starter",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "twinora_starter_27",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Twinora Starter Plan",
+          "subscriptionGroupID" : "21474836",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "47.00",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "2002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "1,200 monthly credits, all image & video models",
+              "displayName" : "Twinora Plus",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "twinora_plus_47",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Twinora Plus Plan",
+          "subscriptionGroupID" : "21474836",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "47.00",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "2003",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "1,200 monthly credits, all image & video models",
+              "displayName" : "Twinora Plus",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "twinora_plus_47.00",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Twinora Plus Plan (Alt)",
+          "subscriptionGroupID" : "21474836",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "97.00",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "2004",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "3,000 monthly credits, natural talk and priority queue",
+              "displayName" : "Twinora Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "twinora_pro_97",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Twinora Pro Plan",
+          "subscriptionGroupID" : "21474836",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "197.99",
+          "familyShareable" : false,
+          "groupNumber" : 4,
+          "internalID" : "2005",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "6,000 monthly credits, full enterprise production suite",
+              "displayName" : "Twinora Business",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "twinora_business_197",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Twinora Business Plan",
+          "subscriptionGroupID" : "21474836",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

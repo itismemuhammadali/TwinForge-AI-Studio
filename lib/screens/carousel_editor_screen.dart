@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:developer' as developer;
 import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
@@ -8,7 +7,6 @@ import '../widgets/premium_header.dart';
 import '../providers/carousel_provider.dart';
 import '../providers/user_provider.dart';
 import '../models/carousel_models.dart';
-import '../services/carousel_export_service.dart';
 import 'carousel_review_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
@@ -23,7 +21,6 @@ class CarouselEditorScreen extends StatefulWidget {
 class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
   int? _selectedOverlayIndex;
   final GlobalKey _canvasKey = GlobalKey();
-  bool _isLoading = false;
   double _dragStartX = 0;
   double _dragStartY = 0;
   double _lastDragX = 0;
@@ -284,8 +281,6 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
   }
 
   void _showTextEditingPanel(BuildContext context, int overlayIndex) {
-    final carouselProvider = context.read<CarouselProvider>();
-    
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.inputBg,
@@ -300,7 +295,7 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
             if (currentOverlay is! TextOverlay) {
               return const SizedBox.shrink();
             }
-            final textOverlay = currentOverlay as TextOverlay;
+            final textOverlay = currentOverlay;
             
             return SingleChildScrollView(
               padding: EdgeInsets.only(
@@ -401,9 +396,13 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
       child: GestureDetector(
         onTap: () {
           TextOverlay updated;
-          if (style == 'bold') updated = overlay.copyWith(bold: !overlay.bold);
-          else if (style == 'italic') updated = overlay.copyWith(italic: !overlay.italic);
-          else updated = overlay.copyWith(underline: !overlay.underline);
+          if (style == 'bold') {
+            updated = overlay.copyWith(bold: !overlay.bold);
+          } else if (style == 'italic') {
+            updated = overlay.copyWith(italic: !overlay.italic);
+          } else {
+            updated = overlay.copyWith(underline: !overlay.underline);
+          }
           provider.updateOverlay(overlayIndex, updated);
         },
         child: Container(
@@ -438,11 +437,6 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
     final carouselProvider = context.watch<CarouselProvider>();
     final currentSlide = carouselProvider.currentSlide;
     final currentSlideIndex = carouselProvider.currentSlideIndex;
-
-    final String? imageUrl = currentSlide.backgroundImageUrl;
-    final Size imageSize = (imageUrl != null && _imageSizes.containsKey(imageUrl))
-        ? _imageSizes[imageUrl]!
-        : const Size(1080.0, 1350.0);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
@@ -607,16 +601,20 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                                   final newX = (_lastDragX + deltaX).clamp(0.0, canvasWidth);
                                                   final newY = (_lastDragY + deltaY).clamp(0.0, canvasHeight);
                                                   
-                                                  if (overlay is TextOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY));
-                                                  else if (overlay is ImageOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY));
+                                                  if (overlay is TextOverlay) {
+                                                    carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY));
+                                                  } else if (overlay is ImageOverlay) {
+                                                    carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY));
+                                                  }
                                                 }
                                               },
                                               onTap: () {
                                                 setState(() => _selectedOverlayIndex = overlayIndex);
                                                 if (overlay is TextOverlay) {
-                                                  final ctx = context;
                                                   Future.delayed(const Duration(milliseconds: 100), () {
-                                                    if (mounted) _showTextEditingPanel(ctx, overlayIndex);
+                                                    if (mounted) {
+                                                      _showTextEditingPanel(this.context, overlayIndex);
+                                                    }
                                                   });
                                                 }
                                               },
@@ -663,8 +661,11 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                                             final newX = _resizeStartX + deltaX; final newY = _resizeStartY + deltaY;
                                                             final newW = (_resizeStartWidth - deltaX).clamp(50.0, canvasWidth);
                                                             final newH = (_resizeStartHeight - deltaY).clamp(50.0, canvasHeight);
-                                                            if (overlay is TextOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY, width: newW, height: newH));
-                                                            else carouselProvider.updateOverlay(overlayIndex, (overlay as ImageOverlay).copyWith(x: newX, y: newY, width: newW, height: newH));
+                                                            if (overlay is TextOverlay) {
+                                                              carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(x: newX, y: newY, width: newW, height: newH));
+                                                            } else {
+                                                              carouselProvider.updateOverlay(overlayIndex, (overlay as ImageOverlay).copyWith(x: newX, y: newY, width: newW, height: newH));
+                                                            }
                                                           }
                                                         },
                                                         onPanEnd: (_) { _isResizing = false; _resizeHandle = ''; },
@@ -684,8 +685,11 @@ class _CarouselEditorScreenState extends State<CarouselEditorScreen> {
                                                             final deltaY = (details.globalPosition.dy - _dragStartY) * scale;
                                                             final newW = (_resizeStartWidth + deltaX).clamp(50.0, canvasWidth);
                                                             final newH = (_resizeStartHeight + deltaY).clamp(50.0, canvasHeight);
-                                                            if (overlay is TextOverlay) carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(width: newW, height: newH));
-                                                            else carouselProvider.updateOverlay(overlayIndex, (overlay as ImageOverlay).copyWith(width: newW, height: newH));
+                                                            if (overlay is TextOverlay) {
+                                                              carouselProvider.updateOverlay(overlayIndex, overlay.copyWith(width: newW, height: newH));
+                                                            } else {
+                                                              carouselProvider.updateOverlay(overlayIndex, (overlay as ImageOverlay).copyWith(width: newW, height: newH));
+                                                            }
                                                           }
                                                         },
                                                         onPanEnd: (_) { _isResizing = false; _resizeHandle = ''; },

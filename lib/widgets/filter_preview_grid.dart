@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'dart:io';
-import 'package:image/image.dart' as img;
 import '../services/filter_service.dart';
 import '../theme/app_theme.dart';
 
@@ -22,7 +21,7 @@ class FilterPreviewGrid extends StatefulWidget {
 }
 
 class _FilterPreviewGridState extends State<FilterPreviewGrid> {
-  Map<String, Uint8List?> _filterCache = {};
+  final Map<String, Uint8List?> _filterCache = {};
   bool _isLoadingFilters = true;
 
   @override

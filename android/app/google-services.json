@@ -33,6 +33,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:298990602880:android:629ae88fb98570a8297465",
+        "android_client_info": {
+          "package_name": "com.twinora.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "298990602880-gi7hnq9ro20almluto74ol3eup68sfbm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBe5B5PXewFvpaxIg-XjnCJ95K12XR3kg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "298990602880-gi7hnq9ro20almluto74ol3eup68sfbm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

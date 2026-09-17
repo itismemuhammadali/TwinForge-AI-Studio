@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:rxdart/rxdart.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -15,6 +13,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/premium_header.dart';
 import '../providers/user_provider.dart';
+import '../providers/library_provider.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 
@@ -30,11 +29,12 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final _tabLabels = ['All', 'Images', 'Carousels', 'Videos'];
+  late final List<String> _tabLabels;
 
   @override
   void initState() {
     super.initState();
+    _tabLabels = ['All', 'Images', 'Carousels', 'Videos'];
     _tabController = TabController(length: _tabLabels.length, vsync: this);
   }
 
@@ -98,44 +98,47 @@ class _LibraryScreenState extends State<LibraryScreen>
           
           const SizedBox(height: 20),
 
-          // Tab bar (Stylized like GalleryScreen)
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.white.withValues(alpha: 0.06), width: 0.5),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 0.5),
+          if (!isSelectionMode) ...[
+            // Tab bar (Stylized like GalleryScreen)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.white.withValues(alpha: 0.06), width: 0.5),
               ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelStyle: AppFonts.poppins(size: 10, weight: FontWeight.w700, letterSpacing: 1),
-              unselectedLabelStyle: AppFonts.poppins(size: 10),
-              labelColor: AppColors.gold,
-              unselectedLabelColor: AppColors.muted,
-              tabs: _tabLabels.map((l) => Tab(text: l)).toList(),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 0.5),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelStyle: AppFonts.poppins(size: 10, weight: FontWeight.w700, letterSpacing: 1),
+                unselectedLabelStyle: AppFonts.poppins(size: 10),
+                labelColor: AppColors.gold,
+                unselectedLabelColor: AppColors.muted,
+                tabs: _tabLabels.map((l) => Tab(text: l)).toList(),
+              ),
             ),
-          ),
-          
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
+          ],
 
-          // Tab content
+          // Tab content / Selection content
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _AllTab(isSelectionMode: isSelectionMode),
-                _ImagesTab(isSelectionMode: isSelectionMode),
-                const _CarouselsTab(),
-                const _VideosTab(),
-              ],
-            ),
+            child: isSelectionMode
+                ? _ImagesTab(isSelectionMode: true)
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _AllTab(isSelectionMode: false),
+                      _ImagesTab(isSelectionMode: false),
+                      const _CarouselsTab(),
+                      const _VideosTab(),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -144,80 +147,51 @@ class _LibraryScreenState extends State<LibraryScreen>
 }
 
 // ── All Tab ───────────────────────────────────────────────────────────────────
+// ── All Tab ───────────────────────────────────────────────────────────────────
 class _AllTab extends StatelessWidget {
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
   final bool isSelectionMode;
 
-  _AllTab({this.isSelectionMode = false});
+  const _AllTab({this.isSelectionMode = false});
 
   @override
   Widget build(BuildContext context) {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return const Center(child: Text('Sign in to view library'));
+    final provider = context.watch<LibraryProvider>();
+    if (provider.isLoading && provider.allDocs.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+    }
 
-    // Combined stream from content and generatedImages
-    final contentStream = _firestore.collection('users').doc(uid).collection('content').snapshots();
-    final imagesStream = _firestore.collection('users').doc(uid).collection('generatedImages').snapshots();
+    final allDocs = isSelectionMode
+        ? provider.allDocs.where((data) {
+            final type = (data['type'] as String? ?? '').toLowerCase();
+            final videoUrl = data['videoUrl'] as String?;
+            return type != 'video' && (videoUrl == null || videoUrl.isEmpty);
+          }).toList()
+        : provider.allDocs;
 
-    return StreamBuilder<List<QuerySnapshot>>(
-      stream: Rx.combineLatest2(contentStream, imagesStream, (a, b) => [a, b]),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+    if (allDocs.isEmpty) {
+      return _emptyState('No content found', Icons.auto_awesome_outlined);
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: allDocs.length,
+      itemBuilder: (context, index) {
+        final data = Map<String, dynamic>.from(allDocs[index]);
+        final type = data['type'] as String? ?? 'image';
+        final docId = data['docId'] as String? ?? index.toString();
+
+        if (type == 'carousel') {
+          return _CarouselCard(data: data, docId: docId);
+        } else if (type == 'video') {
+          return _VideoCard(data: data, docId: docId);
         }
-
-        final List<DocumentSnapshot> allDocs = [];
-        if (snapshot.hasData) {
-          for (var snap in snapshot.data!) {
-            allDocs.addAll(snap.docs);
-          }
-        }
-
-        // Sort by createdAt
-        allDocs.sort((a, b) {
-          final aTime = (a.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
-          final bTime = (b.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
-          if (aTime == null) return 1;
-          if (bTime == null) return -1;
-          return bTime.compareTo(aTime);
-        });
-
-        if (allDocs.isEmpty) {
-          return _emptyState('No content found', Icons.auto_awesome_outlined);
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
-          ),
-          itemCount: allDocs.length,
-          itemBuilder: (context, index) {
-            final data = allDocs[index].data() as Map<String, dynamic>;
-            
-            final type = data['type'] as String? ?? 'image';
-
-            // Map originalImageUrl/videoUrl to imageUrl for preview if needed
-            if (data['imageUrl'] == null) {
-              if (type == 'video') {
-                data['imageUrl'] = data['editedImageUrl'] ?? data['videoUrl'];
-              } else if (data['originalImageUrl'] != null) {
-                data['imageUrl'] = data['originalImageUrl'];
-              }
-            }
-            
-            if (type == 'carousel') {
-              return _CarouselCard(data: data, docId: allDocs[index].id);
-            } else if (type == 'video') {
-              return _VideoCard(data: data, docId: allDocs[index].id);
-            }
-            return _ImageCard(data: data, docId: allDocs[index].id, isSelectionMode: isSelectionMode);
-          },
-        );
+        return _ImageCard(data: data, docId: docId, isSelectionMode: isSelectionMode);
       },
     );
   }
@@ -238,67 +212,40 @@ class _AllTab extends StatelessWidget {
 
 // ── Images Tab ────────────────────────────────────────────────────────────────
 class _ImagesTab extends StatelessWidget {
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
   final bool isSelectionMode;
 
-  _ImagesTab({this.isSelectionMode = false});
+  const _ImagesTab({this.isSelectionMode = false});
 
   @override
   Widget build(BuildContext context) {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return const SizedBox();
+    final provider = context.watch<LibraryProvider>();
+    if (provider.isLoading && provider.imageDocs.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+    }
 
-    final contentStream = _firestore.collection('users').doc(uid).collection('content').where('type', isEqualTo: 'image').snapshots();
-    final imagesStream = _firestore.collection('users').doc(uid).collection('generatedImages').snapshots();
+    final docs = provider.imageDocs;
+    if (docs.isEmpty) {
+      return _emptyState('No images yet', Icons.image_outlined);
+    }
 
-    return StreamBuilder<List<QuerySnapshot>>(
-      stream: Rx.combineLatest2(contentStream, imagesStream, (a, b) => [a, b]),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = Map<String, dynamic>.from(docs[index]);
+        final docId = data['docId'] as String? ?? index.toString();
+
+        if (data['originalImageUrl'] != null && data['imageUrl'] == null) {
+          data['imageUrl'] = data['originalImageUrl'];
         }
 
-        final List<DocumentSnapshot> allDocs = [];
-        if (snapshot.hasData) {
-          for (var snap in snapshot.data!) {
-            allDocs.addAll(snap.docs);
-          }
-        }
-
-        // Sort by createdAt
-        allDocs.sort((a, b) {
-          final aTime = (a.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
-          final bTime = (b.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
-          if (aTime == null) return 1;
-          if (bTime == null) return -1;
-          return bTime.compareTo(aTime);
-        });
-
-        if (allDocs.isEmpty) {
-          return _emptyState('No images yet', Icons.image_outlined);
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
-          ),
-          itemCount: allDocs.length,
-          itemBuilder: (context, index) {
-            final data = allDocs[index].data() as Map<String, dynamic>;
-            
-            // Map originalImageUrl to imageUrl if needed
-            if (data['originalImageUrl'] != null && data['imageUrl'] == null) {
-              data['imageUrl'] = data['originalImageUrl'];
-            }
-            
-            return _ImageCard(data: data, docId: allDocs[index].id, isSelectionMode: isSelectionMode);
-          },
-        );
+        return _ImageCard(data: data, docId: docId, isSelectionMode: isSelectionMode);
       },
     );
   }
@@ -323,39 +270,29 @@ class _CarouselsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const SizedBox();
+    final provider = context.watch<LibraryProvider>();
+    if (provider.isLoading && provider.carouselDocs.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+    }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('content')
-          .where('type', isEqualTo: 'carousel')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
-        }
+    final docs = provider.carouselDocs;
+    if (docs.isEmpty) {
+      return _emptyState('No carousels yet', Icons.view_carousel_outlined);
+    }
 
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return _emptyState('No carousels yet', Icons.view_carousel_outlined);
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
-          ),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            return _CarouselCard(data: docs[index].data() as Map<String, dynamic>, docId: docs[index].id);
-          },
-        );
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = Map<String, dynamic>.from(docs[index]);
+        final docId = data['docId'] as String? ?? index.toString();
+        return _CarouselCard(data: data, docId: docId);
       },
     );
   }
@@ -631,7 +568,11 @@ class _VideoCardState extends State<_VideoCard> {
         if (videoUrl.isNotEmpty) {
           showDialog(
             context: context,
-            builder: (context) => _VideoDetailDialog(videoUrl: videoUrl, prompt: prompt),
+            builder: (context) => _VideoDetailDialog(
+              videoUrl: videoUrl,
+              prompt: prompt,
+              createdAt: widget.data['createdAt'],
+            ),
           );
         }
       },
@@ -650,7 +591,7 @@ class _VideoCardState extends State<_VideoCard> {
                 Image.network(
                   thumbnailUrl, 
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildVideoOrPlaceholder(),
+                  errorBuilder: (_, _, _) => _buildVideoOrPlaceholder(),
                 )
               else
                 _buildVideoOrPlaceholder(),
@@ -722,8 +663,9 @@ class _VideoCardState extends State<_VideoCard> {
 class _VideoDetailDialog extends StatefulWidget {
   final String videoUrl;
   final String prompt;
+  final dynamic createdAt;
 
-  const _VideoDetailDialog({required this.videoUrl, required this.prompt});
+  const _VideoDetailDialog({required this.videoUrl, required this.prompt, this.createdAt});
 
   @override
   State<_VideoDetailDialog> createState() => _VideoDetailDialogState();
@@ -749,6 +691,27 @@ class _VideoDetailDialogState extends State<_VideoDetailDialog> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  String _formatCreatedAt(dynamic raw) {
+    if (raw == null) return 'Recently Created';
+    DateTime? dt;
+    if (raw is Timestamp) {
+      dt = raw.toDate();
+    } else if (raw is DateTime) {
+      dt = raw;
+    } else if (raw is int) {
+      dt = DateTime.fromMillisecondsSinceEpoch(raw);
+    } else if (raw is String) {
+      dt = DateTime.tryParse(raw);
+    }
+    if (dt == null) return 'Recently Created';
+
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just Now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   Future<void> _downloadVideo() async {
@@ -819,7 +782,76 @@ class _VideoDetailDialogState extends State<_VideoDetailDialog> {
                     child: AspectRatio(
                       aspectRatio: _initialized ? _controller.value.aspectRatio : 1,
                       child: _initialized 
-                        ? VideoPlayer(_controller)
+                        ? Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              VideoPlayer(_controller),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _controller.value.isPlaying ? _controller.pause() : _controller.play();
+                                  });
+                                },
+                                child: Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.gold.withValues(alpha: 0.8),
+                                  ),
+                                  child: Icon(
+                                    _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                                    color: AppColors.black,
+                                    size: 26,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                left: 0, right: 0, bottom: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      VideoProgressIndicator(
+                                        _controller,
+                                        allowScrubbing: true,
+                                        colors: const VideoProgressColors(
+                                          playedColor: AppColors.gold,
+                                          bufferedColor: Colors.white30,
+                                          backgroundColor: Colors.white12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      ValueListenableBuilder<VideoPlayerValue>(
+                                        valueListenable: _controller,
+                                        builder: (context, value, child) {
+                                          final pos = value.position;
+                                          final dur = value.duration;
+                                          final posStr = '${pos.inMinutes.remainder(60).toString().padLeft(2, '0')}:${pos.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+                                          final durStr = '${dur.inMinutes.remainder(60).toString().padLeft(2, '0')}:${dur.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+                                          return Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(posStr, style: AppFonts.poppins(size: 10, color: Colors.white70)),
+                                              Text(durStr, style: AppFonts.poppins(size: 10, color: Colors.white70)),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
                         : const Center(child: CircularProgressIndicator(color: AppColors.gold)),
                     ),
                   ),
@@ -828,7 +860,22 @@ class _VideoDetailDialogState extends State<_VideoDetailDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('PROMPT', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('PROMPT', style: AppFonts.poppins(size: 10, weight: FontWeight.w700, color: AppColors.gold)),
+                            Row(
+                              children: [
+                                const Icon(Icons.access_time_rounded, color: AppColors.gold, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _formatCreatedAt(widget.createdAt),
+                                  style: AppFonts.poppins(size: 11, color: AppColors.muted),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 4),
                         Text(widget.prompt, style: AppFonts.poppins(size: 13, color: Colors.white)),
                         const SizedBox(height: 20),
@@ -960,7 +1007,6 @@ class _ImageCardState extends State<_ImageCard> {
     final imageUrl = widget.data['imageUrl'] as String? ?? '';
     final outfit = widget.data['outfit'] as String? ?? '';
     final location = widget.data['location'] as String? ?? '';
-    final gender = widget.data['gender'] as String? ?? '';
 
     return GestureDetector(
       onTap: _isDownloading ? null : _handleTap,
@@ -1032,26 +1078,7 @@ class _ImageCardState extends State<_ImageCard> {
                 ),
               ),
 
-              // Gender badge
-              if (gender.isNotEmpty)
-                Positioned(
-                  top: 8, right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      gender.toUpperCase(),
-                      style: AppFonts.poppins(
-                        size: 8,
-                        weight: FontWeight.w700,
-                        color: AppColors.black,
-                      ),
-                    ),
-                  ),
-                ),
+
             ],
           ),
         ),
@@ -1065,6 +1092,8 @@ class _ImageCardState extends State<_ImageCard> {
       return Image.network(
         imageUrl,
         fit: BoxFit.cover,
+        gaplessPlayback: true,
+        cacheWidth: 400,
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(
@@ -1281,39 +1310,29 @@ class _VideosTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const SizedBox();
+    final provider = context.watch<LibraryProvider>();
+    if (provider.isLoading && provider.videoDocs.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+    }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('content')
-          .where('type', isEqualTo: 'video')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.gold));
-        }
+    final docs = provider.videoDocs;
+    if (docs.isEmpty) {
+      return _emptyState('No videos yet', Icons.play_circle_outline);
+    }
 
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return _emptyState('No videos yet', Icons.play_circle_outline);
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
-          ),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            return _VideoCard(data: docs[index].data() as Map<String, dynamic>, docId: docs[index].id);
-          },
-        );
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = Map<String, dynamic>.from(docs[index]);
+        final docId = data['docId'] as String? ?? index.toString();
+        return _VideoCard(data: data, docId: docId);
       },
     );
   }
