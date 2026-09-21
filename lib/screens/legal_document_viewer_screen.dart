@@ -225,8 +225,8 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       _buildLinkBulletItem(
         context,
         title: 'Website',
-        displayValue: 'https://twinora.com',
-        onTap: () => _openUrl(context, 'https://twinora.com'),
+        displayValue: LegalLinks.websiteUrl,
+        onTap: () => _openUrl(context, LegalLinks.websiteUrl),
         icon: Icons.open_in_new,
       ),
       const SizedBox(height: 30),
@@ -348,8 +348,8 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       _buildLinkBulletItem(
         context,
         title: 'Website',
-        displayValue: 'https://twinora.com',
-        onTap: () => _openUrl(context, 'https://twinora.com'),
+        displayValue: LegalLinks.websiteUrl,
+        onTap: () => _openUrl(context, LegalLinks.websiteUrl),
         icon: Icons.open_in_new,
       ),
       const SizedBox(height: 30),
