@@ -1,0 +1,88 @@
+TWINORA
+
+PRIVACY POLICY & DATA PROTECTION NOTICE
+
+1. Scope & Legal Basis for Data Processing
+
+Digital Passive Academy LTD ('Twinora', 'Company', 'we', 'us', or 'our') is committed to safeguarding your privacy and personal data. This Privacy Policy details how we collect, use, store, process, and protect information when you install, access, or use the Twinora mobile application ('App') across iOS and Android devices.
+
+We process your personal data in strict compliance with applicable global privacy laws, including the European Union and United Kingdom General Data Protection Regulation (GDPR / UK GDPR), the California Consumer Privacy Act (CCPA/CPRA), the Apple App Store Review Guidelines (Section 5.1), and the Google Play Store Data Safety Policies.
+
+Under GDPR Article 6, our lawful bases for data processing include: (i) Performance of a Contract to render requested AI image and video outputs; (ii) Consent explicitly provided when granting camera and photo gallery permissions; and (iii) Legitimate Interests to secure the App, prevent fraudulent usage, and ensure compliance with child safety laws.
+
+2. Information We Collect
+
+We collect only the minimum necessary data required to deliver our AI photo, carousel, talking head video, and cinematic story creation features:
+
+A. Account & Authentication Data: Email address, unique user ID (UID), and authentication tokens generated when registering or signing in via Firebase Authentication (Email/Password, Google Sign-In, or Apple Sign-In).
+
+B. User-Uploaded Media Content: Reference facial photographs, voice audio recordings, user-written text prompts, and custom descriptions uploaded directly by you to generate personalized AI media.
+
+C. Generated AI Media Outputs: AI-generated portraits, carousel slides, talking head videos, and video stories rendered by our cloud processing infrastructure and stored in your private library.
+
+D. In-App Purchase & Transaction Data: Purchase history, active subscription tier, credit top-up records, transaction IDs, and credit balances. FINANCIAL NOTICE: All payment card details, billing addresses, and bank accounts are processed exclusively by Apple Inc. (StoreKit) or Google LLC (Google Play Billing). Twinora never sees, accesses, or stores your financial credit card details.
+
+E. Technical & Diagnostic Logs: Device model, operating system version, unique device identifiers (IDFA/GAID), IP address, app installation ID, latency logs, and crash stack traces collected silently via Firebase Crashlytics to diagnose technical errors.
+
+3. AI Processing, Biometric Features & Media Safety Disclaimers
+
+Twinora utilizes state-of-the-art artificial intelligence models to render realistic digital media. We enforce strict privacy and security guarantees regarding AI media processing:
+
+Transient Processing Only: Uploaded reference photos and audio recordings are processed solely and exclusively for the transient purpose of generating the specific AI image or video requested by you.
+
+No Biometric Identification Profiles: Facial geometry and features in uploaded photos are analyzed temporarily during the generation pipeline to preserve subject identity and consistency. We do NOT build persistent biometric identification templates, facial recognition profiles, or biometric databases to track individuals across third-party platforms.
+
+Zero AI Model Training Guarantee: Your uploaded reference photos, generated images, custom text prompts, and voice audio files are NEVER sold, rented, leased, or used to train, retrain, or improve public, commercial, or foundational AI models.
+
+Private Encrypted Storage: All user media is transmitted over HTTPS utilizing TLS 1.3 encryption and stored in private Google Cloud / Firebase Cloud Storage buckets protected by strict security rules mapped to your individual authenticated User ID.
+
+4. Third-Party AI API Providers & In-App Consent (Apple Guidelines 5.1.1 & 5.1.2)
+
+To execute specialized creation workflows, Twinora securely interfaces via encrypted API requests with industry-leading cloud AI providers. User consent is explicitly collected in-app prior to transmitting any user media (photos, video clips, and audio recordings). Media transmission occurs strictly and exclusively on-demand when you actively initiate an image or video generation, never in the background. All third-party partners are bound by confidentiality and data protection agreements providing equal protection to this policy:
+
+Google Gemini API (Google Cloud Platform): Used for high-resolution AI image rendering and reference image consistency processing.
+
+Fal.ai / Kling 3.0 Engine: Used for high-definition B-roll motion rendering and cinematic video story creation.
+
+Everypixel Labs & Sync.so Engine: Used for high-fidelity facial lip-syncing, audio alignment, and audio-visual synchronization.
+
+HeyGen API: Used for talking head avatar video creation and dynamic facial motion generation.
+
+OpenAI API (GPT-4o Vision): Used for template layout vision analysis and prompt intelligence optimization.
+
+5. Zero-Tolerance Child Safety (CSAM/CSAE) & AI Harm Prevention Policy
+
+Prohibited Content Categories Include:
+
+CSAM / CSAE: Any material depicting, simulating, or suggesting minors in sexually explicit, nude, or suggestive poses.
+
+Non-Consensual Media & Deepfakes: Generating sexually explicit, nude, or harassing imagery of real individuals without their documented consent.
+
+Unauthorized Likeness Uploads: Uploading photos of individuals without legal authorization or intent to defame, stalk, or harass.
+
+6. User Data Rights & Account Deletion Workflows
+
+In compliance with Apple App Store Review Guideline 5.1.1(ix), Google Play Data Safety Policy, and GDPR Article 17, you have the absolute right to delete your account and all associated personal data at any time:
+
+Method 1 — 1. In-App Instant Account Deletion: Open Twinora -> Navigate to Profile -> Tap Settings (gear icon) -> Tap 'Delete Account' -> Confirm. This immediately and permanently purges your authentication record, user profile, credit balance, uploaded photos, and generated library media from our live databases.
+
+Method 2 — 2. Web / Email Deletion Request: Send an email to support@twinora.com with the subject line 'Account Deletion Request' from your registered email address. Our engineering team will process and erase all your records within 3 business days.
+
+7. Data Retention & International Data Transfers
+
+Personal data is retained only for as long as your account remains active. Upon account deletion, all media and profile data are permanently erased. Anonymized transaction logs may be retained solely to comply with statutory financial auditing and tax laws.
+
+Data collected by Twinora may be stored and processed in secure data centers located in the United Kingdom, European Union, and United States operated by Google Cloud Platform. International data transfers are protected under Standard Contractual Clauses (SCCs) and UK International Data Transfer Agreements.
+
+8. Children's Privacy Notice
+
+Twinora is intended strictly for users aged 13 and older (or 16 and older in the EEA/UK). We do not knowingly solicit or collect data from children under 13. If we discover that a child under 13 has created an account, we will immediately delete the account and purge all associated media.
+
+9. Contact Information & Data Protection Officer
+
+For any privacy questions, data protection inquiries, or regulatory communications, please contact our legal team:
+
+Digital Passive Academy LTD
+Attention: Data Protection Officer / Privacy Legal Team
+Email: support@twinora.com
+Website: https://twinora.com
