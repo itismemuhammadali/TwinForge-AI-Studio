@@ -353,7 +353,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
-                                  'To generate your personalized digital twin, your uploaded selfies, photos, and voice recordings are securely processed by our third-party AI partners (Google Gemini, Fal.ai/Kling, Everypixel Labs, SyncLabs, HeyGen). Data is encrypted, strictly never used to train public models, and only your own photos may be used.',
+                                  'Your uploaded photos (selfies/references), video clips, and audio recordings (voice notes) are securely processed by our third-party AI partners (Google Gemini, Fal.ai/Kling, Everypixel Labs, SyncLabs, HeyGen) strictly and ONLY when you tap Generate or Render. Media is never accessed in the background, is encrypted via TLS 1.3, and is never used to train public AI models.',
                                   style: AppFonts.poppins(
                                     size: 10,
                                     color: AppColors.white.withValues(alpha: 0.85),

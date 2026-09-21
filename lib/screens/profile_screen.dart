@@ -484,7 +484,7 @@ class ProfileScreen extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 userProvider.aiDataConsentGranted
-                                    ? 'Allowed (Gemini, Fal, Everypixel, Sync)'
+                                    ? 'Allowed (Photos, Videos & Audio sent only upon generation)'
                                     : 'Disabled (Generation will require consent)',
                                 style: AppFonts.poppins(
                                   size: 11,

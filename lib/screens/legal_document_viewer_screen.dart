@@ -132,7 +132,7 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       _buildBulletItem('Encrypted Storage', 'All user media is encrypted in transit (TLS 1.3) and stored in private Google Cloud / Firebase Cloud Storage buckets.'),
       const SizedBox(height: 16),
       _buildSectionTitle('4. Third-Party AI API Providers & Consent (Apple 5.1.1/5.1.2)'),
-      _buildParagraph('To execute AI creation workflows, Twinora interfaces with secure cloud AI providers. User consent is explicitly collected in-app prior to transmitting any user media (photos, audio, or prompts). All third-party partners are bound by confidentiality and data protection agreements providing equal protection to our policy:'),
+      _buildParagraph('To execute AI creation workflows, Twinora interfaces with secure cloud AI providers. User consent is explicitly collected in-app prior to transmitting any user media (photos, video clips, and audio recordings). Media transmission occurs strictly and exclusively on-demand when you initiate an image or video generation, never in the background. All third-party partners are bound by confidentiality and data protection agreements providing equal protection to our policy:'),
       _buildBulletItem('Google Gemini API', 'High-resolution AI image rendering and reference image consistency.'),
       _buildBulletItem('Fal.ai / Kling 3.0', 'High-definition cinematic video story motion rendering.'),
       _buildBulletItem('Everypixel Labs & Sync.so', 'Lip-sync animation and audio-visual synchronization.'),

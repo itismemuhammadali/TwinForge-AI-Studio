@@ -188,9 +188,15 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildDisclosureItem(
-                  icon: Icons.upload_file_outlined,
-                  title: 'What Data is Sent:',
-                  detail: 'Your uploaded facial reference photos, optional voice recordings, and scene text prompts.',
+                  icon: Icons.perm_media_outlined,
+                  title: 'What Media is Processed:',
+                  detail: 'Your uploaded photos (face references), video clips (motion inputs), and audio recordings (voice notes & speech).',
+                ),
+                const SizedBox(height: 12),
+                _buildDisclosureItem(
+                  icon: Icons.touch_app_outlined,
+                  title: 'When It is Sent (On-Demand Only):',
+                  detail: 'Media is transmitted strictly and ONLY when you actively tap "Generate" or "Render". It is NEVER accessed, monitored, or sent in the background.',
                 ),
                 const SizedBox(height: 12),
                 _buildDisclosureItem(
@@ -202,7 +208,7 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
                 _buildDisclosureItem(
                   icon: Icons.lock_outline_rounded,
                   title: 'Equal Privacy Protection:',
-                  detail: 'Data is strictly encrypted via TLS 1.3, processed exclusively to execute your creation request, and NEVER used to train public or foundational AI models.',
+                  detail: 'Data is strictly encrypted via TLS 1.3, processed transiently solely to execute your request, and NEVER used to train public or foundational AI models.',
                 ),
               ],
             ),
