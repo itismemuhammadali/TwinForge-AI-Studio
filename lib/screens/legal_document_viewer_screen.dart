@@ -34,6 +34,26 @@ class LegalDocumentViewerScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _openEmail(BuildContext context, String email, {String? subject}) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      query: subject != null ? 'subject=${Uri.encodeComponent(subject)}' : null,
+    );
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open email client: $e', style: AppFonts.poppins(color: Colors.white)),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _getTitle();
@@ -91,9 +111,9 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       case LegalDocumentType.termsOfService:
         return _buildTermsOfService(context);
       case LegalDocumentType.accountDeletion:
-        return _buildAccountDeletion();
+        return _buildAccountDeletion(context);
       case LegalDocumentType.aboutUs:
-        return _buildAboutUs();
+        return _buildAboutUs(context);
     }
   }
 
@@ -172,6 +192,8 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       _buildCallout(
         'METHOD 2: WEB / EMAIL DELETION REQUEST',
         'Send an email to support@twinora.com with the subject line "Account Deletion Request" from your registered email address. Our engineering team will process and erase all your records within 3 business days.',
+        actionLabel: 'TAP TO DRAFT DELETION EMAIL',
+        onAction: () => _openEmail(context, 'support@twinora.com', subject: 'Account Deletion Request'),
       ),
       const SizedBox(height: 16),
       _buildSectionTitle('7. Data Retention & International Data Transfers'),
@@ -193,8 +215,20 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       ),
       _buildBulletItem('Operating Entity', 'Digital Passive Academy LTD'),
       _buildBulletItem('Attention', 'Data Protection Officer / Privacy Legal Team'),
-      _buildBulletItem('Email', 'support@twinora.com'),
-      _buildBulletItem('Website', 'https://twinora.com'),
+      _buildLinkBulletItem(
+        context,
+        title: 'Email',
+        displayValue: 'support@twinora.com',
+        onTap: () => _openEmail(context, 'support@twinora.com', subject: 'Privacy Policy Inquiry'),
+        icon: Icons.email_outlined,
+      ),
+      _buildLinkBulletItem(
+        context,
+        title: 'Website',
+        displayValue: 'https://twinora.com',
+        onTap: () => _openUrl(context, 'https://twinora.com'),
+        icon: Icons.open_in_new,
+      ),
       const SizedBox(height: 30),
     ];
   }
@@ -248,7 +282,7 @@ class LegalDocumentViewerScreen extends StatelessWidget {
   }
 
   // --- ACCOUNT DELETION ---
-  List<Widget> _buildAccountDeletion() {
+  List<Widget> _buildAccountDeletion(BuildContext context) {
     return [
       _buildHeaderCard(
         title: 'ACCOUNT & DATA DELETION',
@@ -269,6 +303,8 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       _buildCallout(
         'METHOD 2: EMAIL / WEB REQUEST',
         'Send an email to support@twinora.com with the subject line "Account Deletion Request" from your registered email address. Requests are processed within 3 business days.',
+        actionLabel: 'TAP TO DRAFT DELETION EMAIL',
+        onAction: () => _openEmail(context, 'support@twinora.com', subject: 'Account Deletion Request'),
       ),
       const SizedBox(height: 16),
       _buildSectionTitle('3. Data Subject to Permanent Erasure'),
@@ -281,7 +317,7 @@ class LegalDocumentViewerScreen extends StatelessWidget {
   }
 
   // --- ABOUT US ---
-  List<Widget> _buildAboutUs() {
+  List<Widget> _buildAboutUs(BuildContext context) {
     return [
       _buildHeaderCard(
         title: 'ABOUT TWINORA',
@@ -302,8 +338,20 @@ class LegalDocumentViewerScreen extends StatelessWidget {
       _buildSectionTitle('3. Company & Support Details'),
       _buildBulletItem('Entity', 'Digital Passive Academy LTD'),
       _buildBulletItem('Country', 'United Kingdom'),
-      _buildBulletItem('Support Email', 'support@twinora.com'),
-      _buildBulletItem('Website', 'https://twinora.com'),
+      _buildLinkBulletItem(
+        context,
+        title: 'Support Email',
+        displayValue: 'support@twinora.com',
+        onTap: () => _openEmail(context, 'support@twinora.com', subject: 'Twinora Support Inquiry'),
+        icon: Icons.email_outlined,
+      ),
+      _buildLinkBulletItem(
+        context,
+        title: 'Website',
+        displayValue: 'https://twinora.com',
+        onTap: () => _openUrl(context, 'https://twinora.com'),
+        icon: Icons.open_in_new,
+      ),
       const SizedBox(height: 30),
     ];
   }
@@ -408,7 +456,64 @@ class LegalDocumentViewerScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCallout(String header, String body) {
+  Widget _buildLinkBulletItem(
+    BuildContext context, {
+    required String title,
+    required String displayValue,
+    required VoidCallback onTap,
+    required IconData icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(right: 10),
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: AppColors.gold,
+              shape: BoxShape.circle,
+            ),
+          ),
+          Text(
+            '$title: ',
+            style: AppFonts.poppins(
+              size: 13,
+              weight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    displayValue,
+                    style: AppFonts.poppins(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: AppColors.gold,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(icon, size: 14, color: AppColors.gold),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCallout(String header, String body, {String? actionLabel, VoidCallback? onAction}) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -441,6 +546,33 @@ class LegalDocumentViewerScreen extends StatelessWidget {
               height: 1.4,
             ),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: onAction,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.email_outlined, size: 14, color: AppColors.gold),
+                    const SizedBox(width: 6),
+                    Text(
+                      actionLabel,
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        weight: FontWeight.w700,
+                        color: AppColors.gold,
+                        decoration: TextDecoration.underline,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
