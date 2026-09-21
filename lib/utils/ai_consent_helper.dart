@@ -88,26 +88,33 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF141410),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-          top: BorderSide(color: AppColors.gold, width: 1.2),
-          left: BorderSide(color: Color(0x33D4AF37), width: 0.8),
-          right: BorderSide(color: Color(0x33D4AF37), width: 0.8),
+      constraints: BoxConstraints(
+        maxHeight: mediaQuery.size.height * 0.90,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141410),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(
+          color: AppColors.gold.withValues(alpha: 0.35),
+          width: 1.0,
         ),
       ),
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 16,
+            bottom: mediaQuery.viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
           // Drag handle
           Center(
             child: Container(
@@ -372,6 +379,8 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 }
