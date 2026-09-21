@@ -83,6 +83,7 @@ class _AiConsentBottomSheet extends StatefulWidget {
 }
 
 class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
+  bool _agreed = false;
   bool _isProcessing = false;
 
   @override
@@ -132,9 +133,9 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
                   border: Border.all(color: AppColors.gold, width: 1.2),
                 ),
                 child: const Icon(
-                  Icons.shield_outlined,
+                  Icons.auto_awesome,
                   color: AppColors.gold,
-                  size: 24,
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 14),
@@ -143,17 +144,17 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'AI DATA & PRIVACY DISCLOSURE',
+                      'AI Content Processing',
                       style: AppFonts.poppins(
-                        size: 13,
+                        size: 15,
                         weight: FontWeight.w800,
                         color: AppColors.gold,
-                        letterSpacing: 1.2,
+                        letterSpacing: 0.5,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Apple Guidelines 5.1.1(i) & 5.1.2(i) Notice',
+                      'Third-Party AI Services Disclosure',
                       style: AppFonts.poppins(
                         size: 11,
                         color: AppColors.muted,
@@ -167,16 +168,17 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
           const SizedBox(height: 18),
 
           Text(
-            'To generate high-fidelity AI twins, cinematic B-roll, and realistic talking avatars, Twinora securely interfaces with enterprise AI cloud services. Before generating content, please review and consent to our data handling practices:',
+            'Twinora uses third-party AI processing services to create the content you request.',
             style: AppFonts.poppins(
               size: 12,
-              color: Colors.white.withValues(alpha: 0.9),
+              color: Colors.white.withValues(alpha: 0.95),
+              weight: FontWeight.w600,
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
-          // Disclosures box
+          // Disclosure box
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -187,35 +189,38 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildDisclosureItem(
-                  icon: Icons.perm_media_outlined,
-                  title: 'What Media is Processed:',
-                  detail: 'Your uploaded photos (face references), video clips (motion inputs), and audio recordings (voice notes & speech).',
+                Text(
+                  'Depending on the feature you choose, your selected images, videos, or audio recordings are securely transmitted to Google Gemini, Fal.ai (Kling AI), Everypixel Labs, Sync.so, or HeyGen solely to generate your requested images, videos, or lip-sync content.',
+                  style: AppFonts.poppins(
+                    size: 11.5,
+                    color: Colors.white70,
+                    height: 1.5,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                _buildDisclosureItem(
-                  icon: Icons.touch_app_outlined,
-                  title: 'When It is Sent (On-Demand Only):',
-                  detail: 'Media is transmitted strictly and ONLY when you actively tap "Generate" or "Render". It is NEVER accessed, monitored, or sent in the background.',
-                ),
-                const SizedBox(height: 12),
-                _buildDisclosureItem(
-                  icon: Icons.hub_outlined,
-                  title: 'Who It is Sent To:',
-                  detail: 'Google Gemini (Image AI), Fal.ai / Kling (Video motion), Everypixel Labs & Sync.so (Lip-sync), and HeyGen (Avatars).',
-                ),
-                const SizedBox(height: 12),
-                _buildDisclosureItem(
-                  icon: Icons.lock_outline_rounded,
-                  title: 'Equal Privacy Protection:',
-                  detail: 'Data is strictly encrypted via TLS 1.3, processed transiently solely to execute your request, and NEVER used to train public or foundational AI models.',
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.shield_outlined, color: AppColors.gold, size: 15),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Your content is strictly not sent for advertising or profiling, is encrypted via TLS 1.3, and is never used to train public or foundational AI models.',
+                        style: AppFonts.poppins(
+                          size: 11,
+                          color: AppColors.white.withValues(alpha: 0.9),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
-          // Privacy Policy link
+          // Privacy Policy Link
           GestureDetector(
             onTap: () {
               Navigator.push(
@@ -227,33 +232,83 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
                 ),
               );
             },
-            child: Center(
-              child: RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: AppFonts.poppins(size: 11, color: AppColors.muted),
-                  children: [
-                    const TextSpan(text: 'Read our comprehensive '),
-                    TextSpan(
-                      text: 'Privacy Policy',
-                      style: AppFonts.poppins(
-                        size: 11,
-                        color: AppColors.gold,
-                        weight: FontWeight.w700,
-                        decoration: TextDecoration.underline,
+            child: RichText(
+              text: TextSpan(
+                style: AppFonts.poppins(size: 11, color: AppColors.muted),
+                children: [
+                  const TextSpan(text: 'You can learn more in our '),
+                  TextSpan(
+                    text: 'Privacy Policy',
+                    style: AppFonts.poppins(
+                      size: 11,
+                      color: AppColors.gold,
+                      weight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  const TextSpan(text: '.'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Interactive Checkbox
+          GestureDetector(
+            onTap: () => setState(() => _agreed = !_agreed),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _agreed
+                    ? AppColors.gold.withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _agreed
+                      ? AppColors.gold
+                      : Colors.white24,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: _agreed ? AppColors.gold : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _agreed ? AppColors.gold : Colors.white38,
+                        width: 1.5,
                       ),
                     ),
-                    const TextSpan(text: ' for full details.'),
-                  ],
-                ),
+                    child: _agreed
+                        ? const Icon(Icons.check, size: 16, color: Colors.black)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'I understand and consent to my selected content being processed by the AI providers listed above.',
+                      style: AppFonts.poppins(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: _agreed ? AppColors.white : AppColors.muted,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 20),
 
-          // Primary Button: AGREE & CONTINUE
+          // Primary Button: Agree & Continue
           ElevatedButton(
-            onPressed: _isProcessing
+            onPressed: (!_agreed || _isProcessing)
                 ? null
                 : () async {
                     setState(() => _isProcessing = true);
@@ -267,11 +322,13 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: Colors.black,
+              disabledBackgroundColor: AppColors.gold.withValues(alpha: 0.3),
+              disabledForegroundColor: Colors.black38,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              elevation: 4,
+              elevation: _agreed ? 4 : 0,
             ),
             child: _isProcessing
                 ? const SizedBox(
@@ -283,17 +340,17 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
                     ),
                   )
                 : Text(
-                    'AGREE & ALLOW AI PROCESSING',
+                    'Agree & Continue',
                     style: AppFonts.poppins(
-                      size: 12,
-                      weight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                      size: 13,
+                      weight: FontWeight.w700,
+                      letterSpacing: 0.5,
                     ),
                   ),
           ),
           const SizedBox(height: 10),
 
-          // Secondary Button: MAYBE LATER / DECLINE
+          // Secondary Button: Not Now / Decline
           TextButton(
             onPressed: _isProcessing
                 ? null
@@ -305,52 +362,16 @@ class _AiConsentBottomSheetState extends State<_AiConsentBottomSheet> {
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
             child: Text(
-              widget.allowMaybeLater ? 'MAYBE LATER' : 'DECLINE',
+              widget.allowMaybeLater ? 'Not Now' : 'Decline',
               style: AppFonts.poppins(
                 size: 11,
                 weight: FontWeight.w600,
-                letterSpacing: 1,
+                letterSpacing: 0.8,
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildDisclosureItem({
-    required IconData icon,
-    required String title,
-    required String detail,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: AppColors.gold, size: 16),
-        const SizedBox(width: 10),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: AppFonts.poppins(
-                size: 11,
-                color: Colors.white70,
-                height: 1.4,
-              ),
-              children: [
-                TextSpan(
-                  text: '$title ',
-                  style: AppFonts.poppins(
-                    size: 11,
-                    weight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                TextSpan(text: detail),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
