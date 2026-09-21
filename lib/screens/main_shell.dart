@@ -4,6 +4,7 @@ import 'explore_screen.dart';
 import 'photoshoot_screen.dart';
 import 'edit_screen.dart';
 import 'library_screen.dart';
+import '../utils/ai_consent_helper.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -13,6 +14,14 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AiConsentHelper.checkAndPromptOnLogin(context);
+    });
+  }
 
   final List<Widget> _screens = const [
     ExploreScreen(),

@@ -340,7 +340,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'FACE USAGE & PRIVACY CONSENT',
+                                        'THIRD-PARTY AI PROCESSING & PRIVACY CONSENT',
                                         style: AppFonts.poppins(
                                           size: 10,
                                           weight: FontWeight.w800,
@@ -353,7 +353,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
-                                  'To protect personal privacy and ensure ethical AI generation, you must only use your own face and selfies. You agree that you will never upload or generate content using photos of others without their explicit permission.',
+                                  'To generate your personalized digital twin, your uploaded selfies, photos, and voice recordings are securely processed by our third-party AI partners (Google Gemini, Fal.ai/Kling, Everypixel Labs, SyncLabs, HeyGen). Data is encrypted, strictly never used to train public models, and only your own photos may be used.',
                                   style: AppFonts.poppins(
                                     size: 10,
                                     color: AppColors.white.withValues(alpha: 0.85),
@@ -388,7 +388,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'I agree to only use my own face and selfies',
+                                        'I consent to third-party AI processing & agree to Terms & Privacy Policy',
                                         style: AppFonts.poppins(
                                           size: 11,
                                           weight: FontWeight.w700,

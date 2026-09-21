@@ -66,6 +66,8 @@ class AuthProvider extends ChangeNotifier {
           'displayName': displayName,
           'gender': gender,
           'createdAt': DateTime.now().toIso8601String(),
+          'aiDataConsentGranted': true,
+          'aiDataConsentTimestamp': DateTime.now().toIso8601String(),
           'credits': 4,              // Free trial: 4 image generations
           'totalCredits': 4,
           'subscription': 'free_trial',

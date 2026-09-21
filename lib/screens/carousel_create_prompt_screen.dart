@@ -9,6 +9,7 @@ import '../services/credit_service.dart';
 import '../models/credit_config.dart';
 import 'carousel_template_picker_screen.dart';
 import 'carousel_review_screen.dart';
+import '../utils/ai_consent_helper.dart';
 
 class CarouselCreatePromptScreen extends StatefulWidget {
   final File avatarImageFile;
@@ -51,6 +52,10 @@ class _CarouselCreatePromptScreenState
       );
       return;
     }
+
+    // Pre-generation Gatekeeper: Apple Guidelines 5.1.1(i) & 5.1.2(i)
+    final hasConsent = await AiConsentHelper.ensureConsent(context);
+    if (!hasConsent || !mounted) return;
 
     final hasCredits = await CreditService.ensureSufficientCredits(
       context,

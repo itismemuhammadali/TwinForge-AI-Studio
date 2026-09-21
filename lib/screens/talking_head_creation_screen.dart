@@ -10,6 +10,7 @@ import '../services/fal_ai_service.dart';
 import '../services/storage_service.dart';
 import 'talking_head_audio_screen.dart';
 import 'talking_head_video_review_screen.dart';
+import '../utils/ai_consent_helper.dart';
 
 class TalkingHeadCreationScreen extends StatefulWidget {
   final GeneratedContent? content;
@@ -152,6 +153,10 @@ class _TalkingHeadCreationScreenState extends State<TalkingHeadCreationScreen> {
       );
       return;
     }
+
+    // Pre-generation Gatekeeper: Apple Guidelines 5.1.1(i) & 5.1.2(i)
+    final hasConsent = await AiConsentHelper.ensureConsent(context);
+    if (!hasConsent || !mounted) return;
 
     setState(() {
       _isGenerating = true;

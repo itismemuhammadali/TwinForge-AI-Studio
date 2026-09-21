@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -17,6 +18,7 @@ class UserProvider extends ChangeNotifier {
   String? _subscription;
   int? _credits;
   int? _imagesUsedToday;
+  bool _aiDataConsentGranted = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -28,6 +30,7 @@ class UserProvider extends ChangeNotifier {
   String? get subscription => _subscription;
   int? get credits => _credits;
   int? get imagesUsedToday => _imagesUsedToday;
+  bool get aiDataConsentGranted => _aiDataConsentGranted;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -49,6 +52,7 @@ class UserProvider extends ChangeNotifier {
         _subscription = null;
         _credits = null;
         _imagesUsedToday = null;
+        _aiDataConsentGranted = false;
         notifyListeners();
       }
     });
@@ -71,6 +75,7 @@ class UserProvider extends ChangeNotifier {
         _subscription = data?['subscription'] ?? 'free_trial';
         _credits = data?['credits'] as int? ?? 0;
         _imagesUsedToday = data?['imagesUsedToday'] as int? ?? 0;
+        _aiDataConsentGranted = data?['aiDataConsentGranted'] as bool? ?? false;
       } else {
         _userGender = 'Female';
         _displayName = _auth.currentUser?.displayName ?? 'User';
@@ -78,6 +83,7 @@ class UserProvider extends ChangeNotifier {
         _bio = '';
         _subscription = 'free_trial';
         _credits = 0;
+        _aiDataConsentGranted = false;
       }
       _isLoading = false;
       notifyListeners();
@@ -86,6 +92,28 @@ class UserProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     });
+  }
+
+  Future<void> setAiDataConsent(bool granted) async {
+    _aiDataConsentGranted = granted;
+    notifyListeners();
+
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await _firestore.collection('users').doc(uid).set({
+          'aiDataConsentGranted': granted,
+          'aiDataConsentTimestamp': DateTime.now().toIso8601String(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('Error writing AI consent to Firestore: $e');
+      }
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('ai_data_consent_granted', granted);
+    } catch (_) {}
   }
 
   Future<void> fetchUserData(String uid) async {

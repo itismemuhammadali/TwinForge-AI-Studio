@@ -20,6 +20,7 @@ import '../utils/permission_helper.dart';
 import '../services/credit_service.dart';
 import '../models/credit_config.dart';
 import 'talking_head_video_review_screen.dart';
+import '../utils/ai_consent_helper.dart';
 
 class TalkingHeadAudioScreen extends StatefulWidget {
   final String? initialVideoUrl;
@@ -444,6 +445,10 @@ class _TalkingHeadAudioScreenState extends State<TalkingHeadAudioScreen> with Wi
             durationSec: widget.durationSeconds,
             lipSyncEngine: _lipSyncEngine,
           );
+
+    // Pre-generation Gatekeeper: Apple Guidelines 5.1.1(i) & 5.1.2(i)
+    final hasConsent = await AiConsentHelper.ensureConsent(context);
+    if (!hasConsent || !mounted) return;
 
     final hasCredits = await CreditService.ensureSufficientCredits(
       context,

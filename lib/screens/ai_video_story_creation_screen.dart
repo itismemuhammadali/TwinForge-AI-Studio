@@ -11,6 +11,7 @@ import '../services/storage_service.dart';
 import '../services/credit_service.dart';
 import '../models/credit_config.dart';
 import 'ai_video_story_result_screen.dart';
+import '../utils/ai_consent_helper.dart';
 
 class AiVideoStoryCreationScreen extends StatefulWidget {
   final GeneratedContent? content;
@@ -108,6 +109,11 @@ class _AiVideoStoryCreationScreenState extends State<AiVideoStoryCreationScreen>
     }
 
     final durationSec = _durationSeconds.toInt();
+
+    // Pre-generation Gatekeeper: Apple Guidelines 5.1.1(i) & 5.1.2(i)
+    final hasConsent = await AiConsentHelper.ensureConsent(context);
+    if (!hasConsent || !mounted) return;
+
     final requiredCredits = CreditConfig.getKlingCredits(durationSec, '1080p');
     final hasCredits = await CreditService.ensureSufficientCredits(
       context,

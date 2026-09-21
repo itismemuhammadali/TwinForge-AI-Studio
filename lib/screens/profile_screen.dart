@@ -423,6 +423,106 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
 
+                  // Data & AI Consent Section (Apple Guidelines 5.1.1(i) & 5.1.2(i))
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'DATA & PRIVACY CONSENT',
+                        style: AppFonts.poppins(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: AppColors.gold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: userProvider.aiDataConsentGranted
+                            ? AppColors.gold.withValues(alpha: 0.3)
+                            : Colors.white10,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.gold.withValues(alpha: 0.12),
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome,
+                            color: AppColors.gold,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Third-Party AI Processing',
+                                style: AppFonts.poppins(
+                                  size: 13,
+                                  weight: FontWeight.w600,
+                                  color: AppColors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                userProvider.aiDataConsentGranted
+                                    ? 'Allowed (Gemini, Fal, Everypixel, Sync)'
+                                    : 'Disabled (Generation will require consent)',
+                                style: AppFonts.poppins(
+                                  size: 11,
+                                  color: userProvider.aiDataConsentGranted
+                                      ? AppColors.gold
+                                      : AppColors.muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch.adaptive(
+                          value: userProvider.aiDataConsentGranted,
+                          activeThumbColor: AppColors.gold,
+                          activeTrackColor: AppColors.gold.withValues(alpha: 0.5),
+                          onChanged: (val) async {
+                            await userProvider.setAiDataConsent(val);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    val
+                                        ? 'AI data processing consent granted'
+                                        : 'AI data processing consent revoked',
+                                    style: AppFonts.poppins(color: Colors.white),
+                                  ),
+                                  backgroundColor: val ? AppColors.surface : Colors.redAccent,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
                   // Legal & Policies Header
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 12),

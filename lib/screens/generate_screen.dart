@@ -15,6 +15,7 @@ import '../utils/permission_helper.dart';
 import '../services/credit_service.dart';
 import '../models/credit_config.dart';
 import 'generated_images_screen.dart';
+import '../utils/ai_consent_helper.dart';
 
 class GenerateScreen extends StatefulWidget {
   final String? presetStyle;
@@ -1292,6 +1293,10 @@ class _GenerateScreenState extends State<GenerateScreen> {
             );
             return;
           }
+
+          // Pre-generation Gatekeeper: Apple Guidelines 5.1.1(i) & 5.1.2(i)
+          final hasConsent = await AiConsentHelper.ensureConsent(context);
+          if (!hasConsent || !mounted) return;
 
           final totalRequiredCredits = _batch * CreditConfig.geminiImageCredits;
           final hasCredits = await CreditService.ensureSufficientCredits(

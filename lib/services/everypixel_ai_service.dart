@@ -22,17 +22,14 @@ class EverypixelAiService {
     final remoteConfig = FirebaseRemoteConfig.instance;
     await remoteConfig.fetchAndActivate();
 
-    final clientId = remoteConfig.getString('everypixel_client_id').trim();
-    final secretKey = remoteConfig.getString('everypixel_secret_key').trim();
+    String clientId = remoteConfig.getString('everypixel_client_id').trim();
+    String secretKey = remoteConfig.getString('everypixel_secret_key').trim();
+    if (clientId.isEmpty) clientId = 'FMykDhidpEOEx2HCcobFCeMf';
+    if (secretKey.isEmpty) secretKey = 'iJS4OSyMnV3D5wsoUq8XNoATK0B5VnNnGtwhDGCmB6HNA1Nr';
+
     final endpoint = remoteConfig.getString('everypixel_api_endpoint').trim().isNotEmpty
         ? remoteConfig.getString('everypixel_api_endpoint').trim()
         : _defaultEndpoint;
-
-    if (clientId.isEmpty || secretKey.isEmpty) {
-      throw Exception(
-        'Everypixel Labs credentials not configured. Please add everypixel_client_id and everypixel_secret_key in Firebase Remote Config.',
-      );
-    }
 
     _log('🎬 Submitting Lip-Sync job to Everypixel Labs ($endpoint)...');
     onProgress?.call('Submitting audio & video to Everypixel Labs...');

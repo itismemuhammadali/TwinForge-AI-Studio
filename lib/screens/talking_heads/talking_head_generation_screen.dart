@@ -8,6 +8,7 @@ import '../../widgets/app_widgets.dart';
 import '../../services/fal_ai_service.dart';
 import '../../services/storage_service.dart';
 import 'talking_head_review_screen.dart';
+import '../../utils/ai_consent_helper.dart';
 
 class TalkingHeadGenerationScreen extends StatefulWidget {
   const TalkingHeadGenerationScreen({super.key});
@@ -30,6 +31,14 @@ class _TalkingHeadGenerationScreenState extends State<TalkingHeadGenerationScree
   }
 
   Future<void> _generateVideo() async {
+    // Pre-generation Gatekeeper: Apple Guidelines 5.1.1(i) & 5.1.2(i)
+    final hasConsent = await AiConsentHelper.ensureConsent(context);
+    if (!mounted) return;
+    if (!hasConsent) {
+      Navigator.pop(context);
+      return;
+    }
+
     final provider = context.read<TalkingHeadProvider>();
 
     if (provider.selectedImage == null && provider.selectedImageUrl == null) {
