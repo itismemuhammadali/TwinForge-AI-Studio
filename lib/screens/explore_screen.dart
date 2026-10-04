@@ -82,11 +82,25 @@ class ExploreScreen extends StatelessWidget {
   }
 
   Widget _buildGrid(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final isPaid = userProvider.isPaidSubscriber;
+
+    final String communityTag = isPaid ? 'MEMBERS ONLY' : 'COMMUNITY';
+    final String communityTitle = isPaid
+        ? 'Join Twinora University'
+        : 'Learn cinematic AI content';
+    final String communityDomain = isPaid
+        ? 'briefee.com'
+        : 'aimasteryrevolution.com';
+    final String communityUrl = isPaid
+        ? 'https://app.briefee.com/community/accept-link-invitation?token=6s1s9vh98u5lb2svgpx0e7v83w1ach42fmyphelw'
+        : 'https://aimasteryrevolution.com';
+
     return Column(children: [
-      // Community Card
+      // Community Card (Option 2: Members-Only Access)
       GestureDetector(
         onTap: () async {
-          final url = Uri.parse('https://app.briefee.com/community/accept-link-invitation?token=6s1s9vh98u5lb2svgpx0e7v83w1ach42fmyphelw');
+          final url = Uri.parse(communityUrl);
           await launchUrl(url, mode: LaunchMode.externalApplication);
         },
         child: Container(
@@ -110,18 +124,30 @@ class ExploreScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'COMMUNITY',
-                style: AppFonts.poppins(
-                  size: 10,
-                  weight: FontWeight.w700,
-                  color: const Color(0xFF7B68EE),
-                  letterSpacing: 2,
-                ),
+              Row(
+                children: [
+                  Text(
+                    communityTag,
+                    style: AppFonts.poppins(
+                      size: 10,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFF7B68EE),
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  if (isPaid) ...[
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.stars_rounded,
+                      color: AppColors.gold,
+                      size: 14,
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 8),
               Text(
-                'Join Twinora University',
+                communityTitle,
                 style: AppFonts.playfair(
                   size: 20,
                   weight: FontWeight.w900,
@@ -131,10 +157,10 @@ class ExploreScreen extends StatelessWidget {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(Icons.open_in_new, color: const Color(0xFF7B68EE), size: 14),
+                  const Icon(Icons.open_in_new, color: Color(0xFF7B68EE), size: 14),
                   const SizedBox(width: 6),
                   Text(
-                    'briefee.com',
+                    communityDomain,
                     style: AppFonts.poppins(
                       size: 12,
                       color: const Color(0xFF7B68EE),

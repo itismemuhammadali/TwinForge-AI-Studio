@@ -8,9 +8,7 @@ class KlingAiService {
   static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
   static String get _apiKey {
-    final key = _remoteConfig.getString('kling_api_key');
-    if (key.isNotEmpty) return key;
-    return 'api-key-kling-WEOS-jl-ceruTx3ZUnChsr6g8MoxkQQLcgJkaQRdzRU';
+    return _remoteConfig.getString('kling_api_key').trim();
   }
 
   static void _log(String msg) {

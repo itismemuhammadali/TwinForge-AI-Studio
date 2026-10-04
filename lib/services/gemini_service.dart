@@ -9,11 +9,7 @@ class GeminiService {
   static final FirebaseRemoteConfig _remoteConfig =
       FirebaseRemoteConfig.instance;
 
-  // Verified working production key from Firebase Remote Config as guaranteed fallback
-  static const String _fallbackGeminiApiKey =
-      '';
-
-  /// Guaranteed non-empty API key: checks memory, then Remote Config, then verified fallback
+  /// Guaranteed API key from memory or Firebase Remote Config
   static String get effectiveApiKey {
     if (apiKey.trim().isNotEmpty) return apiKey.trim();
     try {
@@ -23,7 +19,7 @@ class GeminiService {
         return apiKey;
       }
     } catch (_) {}
-    return _fallbackGeminiApiKey;
+    return apiKey.trim();
   }
 
   /// Initialize Gemini Service with API key from Firebase Remote Config
@@ -32,18 +28,11 @@ class GeminiService {
     try {
       debugLog('🚀 Initializing Gemini Service...');
 
-      // Set default values with fallback to prevent empty key errors
-      await _remoteConfig.setDefaults({
-        'gemini_api_key': _fallbackGeminiApiKey,
-      });
-
       // Fetch remote config with timeout
       await _remoteConfig.fetchAndActivate().timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          debugLog(
-            '⚠️ Remote Config fetch timed out after 10s, using fallback/cached key',
-          );
+          debugLog('⚠️ Remote Config fetch timed out after 10s');
           return false;
         },
       );
@@ -52,17 +41,12 @@ class GeminiService {
       final remoteKey = _remoteConfig.getString('gemini_api_key').trim();
       if (remoteKey.isNotEmpty) {
         apiKey = remoteKey;
-      } else {
-        apiKey = _fallbackGeminiApiKey;
       }
 
       debugLog('🔑 Gemini API key ready (${effectiveApiKey.length} chars)');
       debugLog('✅ Gemini Service initialized successfully');
     } catch (e) {
-      apiKey = _fallbackGeminiApiKey;
-      debugLog(
-        '⚠️ Notice during Gemini Service initialization, using fallback key: $e',
-      );
+      debugLog('⚠️ Notice during Gemini Service initialization: $e');
     }
   }
 

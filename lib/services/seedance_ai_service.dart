@@ -9,21 +9,15 @@ class SeedanceAiService {
   static final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
   static String get _apiKey {
-    final key = _remoteConfig.getString('seedance_api_key');
-    if (key.isNotEmpty) return key;
-    return '';
+    return _remoteConfig.getString('seedance_api_key').trim();
   }
 
   static String get _endpointId25 {
-    final ep = _remoteConfig.getString('seedance_25_endpoint_id');
-    if (ep.isNotEmpty) return ep;
-    return 'ep-20260816020301-rxjkd';
+    return _remoteConfig.getString('seedance_25_endpoint_id').trim();
   }
 
   static String get _endpointId20 {
-    final ep = _remoteConfig.getString('seedance_20_endpoint_id');
-    if (ep.isNotEmpty) return ep;
-    return 'ep-20260816023805-tp2lg';
+    return _remoteConfig.getString('seedance_20_endpoint_id').trim();
   }
 
   static void _log(String msg) {

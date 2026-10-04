@@ -28,6 +28,11 @@ class UserProvider extends ChangeNotifier {
   String? get bio => _bio;
   String? get profileImageUrl => _profileImageUrl;
   String? get subscription => _subscription;
+  bool get isPaidSubscriber {
+    if (_subscription == null) return false;
+    final s = _subscription!.toLowerCase().trim();
+    return s.isNotEmpty && s != 'free_trial' && s != 'free' && s != 'none';
+  }
   int? get credits => _credits;
   int? get imagesUsedToday => _imagesUsedToday;
   bool get aiDataConsentGranted => _aiDataConsentGranted;

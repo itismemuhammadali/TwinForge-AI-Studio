@@ -172,12 +172,28 @@ class IapService extends ChangeNotifier {
           notifyListeners();
         } else if (purchaseDetails.status == PurchaseStatus.purchased ||
             purchaseDetails.status == PurchaseStatus.restored) {
-          await _grantPurchaseCredits(purchaseDetails);
-          _isLoading = false;
-          notifyListeners();
+          try {
+            await _grantPurchaseCredits(purchaseDetails);
+            _errorMessage = null;
+            _isLoading = false;
+            notifyListeners();
+
+            // Crucial: Only finalize purchase with the store AFTER user credits are securely written
+            if (purchaseDetails.pendingCompletePurchase) {
+              await _iap.completePurchase(purchaseDetails);
+            }
+          } catch (e) {
+            _isLoading = false;
+            _errorMessage = 'Could not sync credits to account: $e. Please tap Restore Purchases or reopen the app.';
+            notifyListeners();
+            // Do NOT complete purchase if credit grant failed, allowing store retry
+            continue;
+          }
         }
 
-        if (purchaseDetails.pendingCompletePurchase) {
+        if (purchaseDetails.pendingCompletePurchase &&
+            purchaseDetails.status != PurchaseStatus.purchased &&
+            purchaseDetails.status != PurchaseStatus.restored) {
           await _iap.completePurchase(purchaseDetails);
         }
 
@@ -192,77 +208,132 @@ class IapService extends ChangeNotifier {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       debugPrint('⚠️ Cannot grant purchase credits: No authenticated user.');
-      return;
+      throw Exception('User is not authenticated.');
     }
 
-    final productId = purchaseDetails.productID;
+    final rawProductId = purchaseDetails.productID;
+    // Strip Google Play base plan / offer ID suffixes (e.g. "twinora_starter_27:p1m" -> "twinora_starter_27")
+    final productId = rawProductId.split(':').first.trim().toLowerCase();
     final txId = purchaseDetails.purchaseID;
     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
     final purchasesCol = FirebaseFirestore.instance.collection('purchases');
 
-    try {
-      // Idempotency check: prevent duplicate credit granting on restored purchases
-      if (txId != null && txId.isNotEmpty) {
+    // 1. Resolve credit amount and subscription plan with robust fallback matching
+    int creditsToAdd = 0;
+    String? subscriptionPlan;
+    bool isSubscription = false;
+
+    if (CreditConfig.subscriptionCreditsMap.containsKey(productId)) {
+      creditsToAdd = CreditConfig.subscriptionCreditsMap[productId]!;
+      subscriptionPlan = productId.replaceAll('twinora_', '');
+      isSubscription = true;
+    } else if (productId == CreditConfig.subPlusAlt || productId == 'twinora_plus_47') {
+      creditsToAdd = 1200;
+      subscriptionPlan = 'plus';
+      isSubscription = true;
+    } else if (CreditConfig.topUpCreditsMap.containsKey(productId)) {
+      creditsToAdd = CreditConfig.topUpCreditsMap[productId]!;
+      subscriptionPlan = null;
+      isSubscription = false;
+    } else {
+      // Fuzzy fallback for store product IDs (handles store variants across iOS & Android)
+      if (productId.contains('starter')) {
+        creditsToAdd = 600;
+        subscriptionPlan = 'starter';
+        isSubscription = true;
+      } else if (productId.contains('plus')) {
+        creditsToAdd = 1200;
+        subscriptionPlan = 'plus';
+        isSubscription = true;
+      } else if (productId.contains('pro')) {
+        creditsToAdd = 3000;
+        subscriptionPlan = 'pro';
+        isSubscription = true;
+      } else if (productId.contains('business')) {
+        creditsToAdd = 6000;
+        subscriptionPlan = 'business';
+        isSubscription = true;
+      } else if (productId.contains('4000')) {
+        creditsToAdd = 4000;
+      } else if (productId.contains('2000')) {
+        creditsToAdd = 2000;
+      } else if (productId.contains('1000')) {
+        creditsToAdd = 1000;
+      } else if (productId.contains('500')) {
+        creditsToAdd = 500;
+      } else if (productId.contains('250')) {
+        creditsToAdd = 250;
+      } else {
+        debugPrint('⚠️ Unrecognized product ID: $productId (raw: $rawProductId)');
+        return;
+      }
+    }
+
+    // 2. Safe idempotency check (isolated in try/catch so rule/read errors never block credits)
+    bool alreadyProcessed = false;
+    if (txId != null && txId.isNotEmpty) {
+      try {
         final existingDoc = await purchasesCol.doc(txId).get();
         if (existingDoc.exists) {
-          debugPrint('ℹ️ Transaction $txId was already processed. Skipping duplicate credit grant.');
-          // Ensure active subscription tier on user doc is maintained
-          if (CreditConfig.subscriptionCreditsMap.containsKey(productId)) {
-            final planName = productId.replaceAll('twinora_', '');
-            await userRef.set({
-              'subscription': planName,
-            }, SetOptions(merge: true));
+          final data = existingDoc.data();
+          if (data != null && data['status'] == 'completed') {
+            alreadyProcessed = true;
+            debugPrint('ℹ️ Transaction $txId was already processed.');
           }
-          return;
         }
+      } catch (e) {
+        debugPrint('⚠️ Non-fatal idempotency check warning: $e');
+      }
+    }
+
+    if (alreadyProcessed) {
+      // Ensure user subscription status is kept in sync even if duplicate event
+      if (isSubscription && subscriptionPlan != null) {
+        try {
+          await userRef.set({
+            'subscription': subscriptionPlan,
+          }, SetOptions(merge: true));
+        } catch (_) {}
+      }
+      return;
+    }
+
+    // 3. PRIMARY ACTION: Credit the user's account in Firestore
+    try {
+      final Map<String, dynamic> updateData = {
+        'credits': FieldValue.increment(creditsToAdd),
+        'lastCreditUpdate': FieldValue.serverTimestamp(),
+      };
+      if (isSubscription && subscriptionPlan != null) {
+        updateData['subscription'] = subscriptionPlan;
+        updateData['lastSubscribedAt'] = FieldValue.serverTimestamp();
       }
 
-      if (CreditConfig.subscriptionCreditsMap.containsKey(productId)) {
-        final creditsToAdd = CreditConfig.subscriptionCreditsMap[productId] ?? 600;
-        final planName = productId.replaceAll('twinora_', '');
-
-        await userRef.set({
-          'credits': FieldValue.increment(creditsToAdd),
-          'subscription': planName,
-          'lastSubscribedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        // Record transaction document with txId as key
-        final docRef = (txId != null && txId.isNotEmpty) ? purchasesCol.doc(txId) : purchasesCol.doc();
-        await docRef.set({
-          'uid': uid,
-          'productId': productId,
-          'type': 'subscription',
-          'creditsAdded': creditsToAdd,
-          'transactionId': txId ?? docRef.id,
-          'status': purchaseDetails.status.name,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-        _lastPurchasedCredits = creditsToAdd;
-        debugPrint('✅ Granted $creditsToAdd subscription credits for $planName ($txId)');
-      } else if (CreditConfig.topUpCreditsMap.containsKey(productId)) {
-        final creditsToAdd = CreditConfig.topUpCreditsMap[productId] ?? 250;
-
-        await userRef.set({
-          'credits': FieldValue.increment(creditsToAdd),
-        }, SetOptions(merge: true));
-
-        // Record transaction document with txId as key
-        final docRef = (txId != null && txId.isNotEmpty) ? purchasesCol.doc(txId) : purchasesCol.doc();
-        await docRef.set({
-          'uid': uid,
-          'productId': productId,
-          'type': 'topup',
-          'creditsAdded': creditsToAdd,
-          'transactionId': txId ?? docRef.id,
-          'status': purchaseDetails.status.name,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-        _lastPurchasedCredits = creditsToAdd;
-        debugPrint('✅ Granted $creditsToAdd top-up credits ($txId)');
-      }
+      await userRef.set(updateData, SetOptions(merge: true));
+      _lastPurchasedCredits = creditsToAdd;
+      debugPrint('✅ Granted $creditsToAdd credits to user $uid (Plan: $subscriptionPlan, tx: $txId)');
     } catch (e) {
-      debugPrint('❌ Error granting purchase credits: $e');
+      debugPrint('❌ Failed to update user credits in Firestore: $e');
+      rethrow;
+    }
+
+    // 4. SECONDARY ACTION: Record transaction record in purchases collection (non-blocking)
+    try {
+      final docRef = (txId != null && txId.isNotEmpty) ? purchasesCol.doc(txId) : purchasesCol.doc();
+      await docRef.set({
+        'uid': uid,
+        'productId': productId,
+        'rawProductId': rawProductId,
+        'type': isSubscription ? 'subscription' : 'topup',
+        'creditsAdded': creditsToAdd,
+        'subscriptionPlan': subscriptionPlan,
+        'transactionId': txId ?? docRef.id,
+        'status': 'completed',
+        'storeStatus': purchaseDetails.status.name,
+        'timestamp': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (logErr) {
+      debugPrint('⚠️ Non-fatal: Failed to log purchase record: $logErr');
     }
   }
 
