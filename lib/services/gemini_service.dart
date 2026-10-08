@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:image/image.dart' as img;
 
 class GeminiService {
   static String apiKey = '';
@@ -55,10 +56,45 @@ class GeminiService {
     debugPrint('[GeminiService] $message');
   }
 
-  /// Convert image file to base64 string
+  /// Safely downscale image bytes if larger than 800KB to minimize Gemini multimodal input tokens
+  static Uint8List _optimizeImageBytes(Uint8List originalBytes) {
+    try {
+      if (originalBytes.lengthInBytes <= 800 * 1024) {
+        return originalBytes;
+      }
+      final decoded = img.decodeImage(originalBytes);
+      if (decoded == null) return originalBytes;
+
+      int targetWidth = decoded.width;
+      int targetHeight = decoded.height;
+      if (targetWidth > 1024 || targetHeight > 1024) {
+        if (targetWidth >= targetHeight) {
+          targetHeight = (targetHeight * 1024 / targetWidth).round();
+          targetWidth = 1024;
+        } else {
+          targetWidth = (targetWidth * 1024 / targetHeight).round();
+          targetHeight = 1024;
+        }
+      }
+
+      final resized = (targetWidth != decoded.width || targetHeight != decoded.height)
+          ? img.copyResize(decoded, width: targetWidth, height: targetHeight)
+          : decoded;
+
+      final compressedBytes = Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+      debugLog('📉 Optimized image from ${originalBytes.lengthInBytes ~/ 1024}KB to ${compressedBytes.lengthInBytes ~/ 1024}KB');
+      return compressedBytes;
+    } catch (e) {
+      debugLog('⚠️ Image optimization error, using original: $e');
+      return originalBytes;
+    }
+  }
+
+  /// Convert image file to base64 string with token optimization
   Future<String> _fileToBase64(File imageFile) async {
     final bytes = await imageFile.readAsBytes();
-    return base64Encode(bytes);
+    final optimized = _optimizeImageBytes(bytes);
+    return base64Encode(optimized);
   }
 
   Future<String> generateImagePrompt({
@@ -259,22 +295,8 @@ Style: High-end lifestyle photograph, realistic raw photo textures, cinematic li
           debugLog('✅ Image ${i + 1} generated successfully');
           return imageData;
         } catch (e) {
-          debugLog(
-            '⚠️ Image ${i + 1} initial attempt failed: $e. Retrying in 1.5s...',
-          );
-          await Future.delayed(const Duration(milliseconds: 1500));
-          try {
-            final retryImageData = await _generateSingleImage(
-              base64Image,
-              detailedPrompt,
-              aspectRatio,
-            );
-            debugLog('✅ Image ${i + 1} generated successfully on retry');
-            return retryImageData;
-          } catch (retryError) {
-            debugLog('❌ Error generating image ${i + 1} on retry: $retryError');
-            return 'error';
-          }
+          debugLog('❌ Error generating image ${i + 1}: $e');
+          return 'error';
         }
       });
 
@@ -290,12 +312,13 @@ Style: High-end lifestyle photograph, realistic raw photo textures, cinematic li
     }
   }
 
-  /// Download image from URL to base64 string
+  /// Download image from URL to base64 string with token optimization
   static Future<String> _urlToBase64(String url) async {
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        return base64Encode(response.bodyBytes);
+        final optimized = _optimizeImageBytes(response.bodyBytes);
+        return base64Encode(optimized);
       } else {
         throw Exception('Failed to download image from $url');
       }

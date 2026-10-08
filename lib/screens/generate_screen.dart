@@ -56,7 +56,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
   String _hips = StudioOptions.hipsSizes[0];
   String _angle = StudioOptions.cameraAngles[0];
   String _ratio = StudioOptions.aspectRatios[0];
-  int _batch = 4;
+  int _batch = 1;
   bool _hasImage = false;
   bool _generating = false;
   bool _processingTemplate = false;

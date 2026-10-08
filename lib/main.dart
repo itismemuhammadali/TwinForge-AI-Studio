@@ -53,14 +53,6 @@ void main() async {
     debugPrint('HiggsfieldService initialization failed: $e');
   }
 
-  // Start pre-fetching trending data in the background (don't await)
-  // This will be cached and ready when user opens the Trending tab
-  TrendingService.getTrendingTemplates().then((_) {
-    debugPrint('✅ Trending data pre-fetched in background');
-  }).catchError((e) {
-    debugPrint('⚠️ Background trending fetch failed (non-blocking): $e');
-  });
-
   runApp(const AimrTwinApp());
 }
 
