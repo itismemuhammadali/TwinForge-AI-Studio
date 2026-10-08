@@ -18,12 +18,21 @@ import 'services/iap_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Enable Edge-to-Edge display (Android 15+ & Play Console recommendation)
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Bitmap memory & downsampling optimization (Android Vitals recommendation)
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB max cache
+  PaintingBinding.instance.imageCache.maximumSize = 1000;
 
   // Initialize Firebase before running the app to ensure Auth state is recovered
   try {

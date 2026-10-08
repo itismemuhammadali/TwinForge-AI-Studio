@@ -209,6 +209,7 @@ class _StockImageGalleryState extends State<StockImageGallery> {
                                   borderRadius: BorderRadius.circular(12),
                                   child: Image.network(
                                     image.imageUrl,
+                                    cacheWidth: 500,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Container(

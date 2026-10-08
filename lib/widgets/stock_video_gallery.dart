@@ -210,6 +210,7 @@ class _StockVideoGalleryState extends State<StockVideoGallery> {
                                   borderRadius: BorderRadius.circular(12),
                                   child: Image.network(
                                     video.imageUrl,
+                                    cacheWidth: 500,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Container(
