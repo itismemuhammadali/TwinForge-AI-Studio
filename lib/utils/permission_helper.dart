@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
@@ -21,13 +22,11 @@ class PermissionHelper {
       }
 
       final permissions = <Permission>[
-        Permission.photos,
-        Permission.storage,
+        if (Platform.isIOS) Permission.photos,
+        if (Platform.isIOS) Permission.mediaLibrary,
         Permission.camera,
         Permission.audio,
-        Permission.videos,
         Permission.notification,
-        Permission.mediaLibrary,
       ];
       
       // Explicitly request permissions in batch sequence
@@ -53,21 +52,19 @@ class PermissionHelper {
         }
         return false;
       } else {
-        // Photos / Storage
+        // On Android, use the modern system Photo Picker directly (no permissions required)
+        if (Platform.isAndroid) {
+          return true;
+        }
+
+        // Photos on iOS
         var photosStatus = await Permission.photos.status;
         if (photosStatus.isGranted || photosStatus.isLimited) return true;
 
         var photosResult = await Permission.photos.request();
         if (photosResult.isGranted || photosResult.isLimited) return true;
 
-        // Try storage permission for Android 12 and below
-        var storageStatus = await Permission.storage.status;
-        if (storageStatus.isGranted) return true;
-
-        var storageResult = await Permission.storage.request();
-        if (storageResult.isGranted) return true;
-
-        if (context.mounted && (photosResult.isPermanentlyDenied || storageResult.isPermanentlyDenied)) {
+        if (context.mounted && photosResult.isPermanentlyDenied) {
           handlePermissionError(context, 'photos', source);
         }
         return false;
@@ -181,6 +178,9 @@ class PermissionHelper {
   /// Checks permission before saving images/videos to gallery
   static Future<bool> checkSavePermission(BuildContext context) async {
     try {
+      if (Platform.isAndroid) {
+        return true; // Android uses MediaStore / Scoped Storage
+      }
       var photosStatus = await Permission.photos.status;
       if (photosStatus.isGranted || photosStatus.isLimited) return true;
 
