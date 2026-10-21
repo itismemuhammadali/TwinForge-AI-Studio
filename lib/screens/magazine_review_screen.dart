@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_widgets.dart';
 import 'talking_heads/talking_head_image_review_screen.dart';
 
 class MagazineReviewScreen extends StatefulWidget {
@@ -108,6 +109,11 @@ class _MagazineReviewScreenState extends State<MagazineReviewScreen> {
         ),
         centerTitle: true,
         actions: [
+          ReportContentIconButton(
+            contentId: 'magazine_${widget.generatedImage.hashCode}',
+            contentType: 'AI Generated Magazine Image',
+            previewUrl: widget.isNetworkImage ? widget.generatedImage : null,
+          ),
           IconButton(
             icon: const Icon(Icons.close, color: AppColors.white, size: 22),
             onPressed: () => Navigator.pop(context),
@@ -158,6 +164,12 @@ class _MagazineReviewScreenState extends State<MagazineReviewScreen> {
                 ),
               ),
             ),
+            ReportContentTextButton(
+              contentId: 'magazine_${widget.generatedImage.hashCode}',
+              contentType: 'AI Generated Magazine Image',
+              previewUrl: widget.isNetworkImage ? widget.generatedImage : null,
+            ),
+            const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
             decoration: BoxDecoration(

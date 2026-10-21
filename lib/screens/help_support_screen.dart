@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -52,7 +53,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         'message': text,
         'createdAt': FieldValue.serverTimestamp(),
         'status': 'open',
-        'platform': 'iOS',
+        'platform': Platform.isAndroid ? 'Android' : 'iOS',
       });
 
       if (mounted) {
@@ -161,6 +162,72 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                 icon: Icons.language,
                 title: 'Website',
                 value: 'www.twinora.ai',
+              ),
+              const SizedBox(height: 32),
+
+              // Report AI Content Card
+              _sectionHeader('Report AI Content (Policy Compliance)'),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.orangeAccent.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.flag_outlined, color: Colors.orangeAccent, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Flag Inappropriate AI Content',
+                          style: AppFonts.poppins(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Encountered offensive, harmful, or policy-violating AI generated content? Flag it immediately for moderation review.',
+                      style: AppFonts.poppins(size: 11, color: AppColors.muted, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.orangeAccent),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        icon: const Icon(Icons.flag, color: Colors.orangeAccent, size: 16),
+                        label: Text(
+                          'REPORT OFFENSIVE CONTENT',
+                          style: AppFonts.poppins(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: Colors.orangeAccent,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        onPressed: () => showReportContentDialog(
+                          context,
+                          contentId: 'support_flag_${DateTime.now().millisecondsSinceEpoch}',
+                          contentType: 'Support In-App Report',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 32),
 

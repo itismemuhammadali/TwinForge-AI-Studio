@@ -317,7 +317,15 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: const AimrAppBar(),
+      appBar: AimrAppBar(
+        actions: [
+          ReportContentIconButton(
+            contentId: 'image_${widget.generatedImages.isNotEmpty ? widget.generatedImages[_currentIndex].hashCode : DateTime.now().millisecondsSinceEpoch}',
+            contentType: 'AI Generated Image',
+            previewUrl: widget.generatedImages.isNotEmpty ? widget.generatedImages[_currentIndex] : null,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -521,7 +529,18 @@ class _GeneratedImagesScreenState extends State<GeneratedImagesScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Center(
+                child: ReportContentTextButton(
+                  contentId: 'image_${widget.generatedImages.isNotEmpty ? widget.generatedImages[_currentIndex].hashCode : DateTime.now().millisecondsSinceEpoch}',
+                  contentType: 'AI Generated Image',
+                  previewUrl: widget.generatedImages.isNotEmpty ? widget.generatedImages[_currentIndex] : null,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(

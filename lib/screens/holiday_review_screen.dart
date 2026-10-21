@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gal/gal.dart';
 import '../theme/app_theme.dart';
 import '../models/generated_content.dart';
+import '../widgets/app_widgets.dart';
 import 'talking_heads/talking_head_image_review_screen.dart';
 
 class HolidayReviewScreen extends StatefulWidget {
@@ -90,6 +91,11 @@ class _HolidayReviewScreenState extends State<HolidayReviewScreen> {
         title: Text('HOLIDAY EDITION', style: AppFonts.poppins(size: 13, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 3)),
         centerTitle: true,
         actions: [
+          ReportContentIconButton(
+            contentId: 'holiday_${_imageUrl.hashCode}',
+            contentType: 'AI Generated Holiday Image',
+            previewUrl: _imageUrl,
+          ),
           IconButton(
             icon: const Icon(Icons.close, color: AppColors.white, size: 22),
             onPressed: () => Navigator.pop(context),
@@ -115,6 +121,12 @@ class _HolidayReviewScreenState extends State<HolidayReviewScreen> {
                 ),
               ),
             ),
+            ReportContentTextButton(
+              contentId: 'holiday_${_imageUrl.hashCode}',
+              contentType: 'AI Generated Holiday Image',
+              previewUrl: _imageUrl,
+            ),
+            const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
             decoration: BoxDecoration(

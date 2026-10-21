@@ -489,6 +489,12 @@ class _CarouselDetailDialogState extends State<_CarouselDetailDialog> {
                           ),
                           child: Text('CLOSE', style: AppFonts.poppins(size: 13, weight: FontWeight.w700, color: AppColors.gold, letterSpacing: 2)),
                         ),
+                        const SizedBox(height: 12),
+                        ReportContentTextButton(
+                          contentId: 'carousel_${slides.isNotEmpty ? slides[_currentSlide]['backgroundImageUrl'].hashCode : widget.data.hashCode}',
+                          contentType: 'AI Generated Carousel',
+                          previewUrl: slides.isNotEmpty ? slides[_currentSlide]['backgroundImageUrl'] : null,
+                        ),
                       ],
                     ),
                   ),
@@ -935,6 +941,12 @@ class _VideoDetailDialogState extends State<_VideoDetailDialog> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        ReportContentTextButton(
+                          contentId: 'video_${widget.videoUrl.hashCode}',
+                          contentType: 'AI Generated Video',
+                          previewUrl: widget.videoUrl,
+                        ),
                       ],
                     ),
                   ),
@@ -1173,6 +1185,12 @@ class _ImageCardState extends State<_ImageCard> {
 
                   // Download button
                   _DownloadButton(imageUrl: imageUrl),
+                  const SizedBox(height: 12),
+                  ReportContentTextButton(
+                    contentId: 'image_${imageUrl.hashCode}',
+                    contentType: 'AI Generated Image',
+                    previewUrl: imageUrl,
+                  ),
                 ],
               ),
             ),

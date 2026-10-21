@@ -161,7 +161,15 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: AimrAppBar(actions: []),
+      appBar: AimrAppBar(
+        actions: [
+          ReportContentIconButton(
+            contentId: 'video_${widget.videoUrl.hashCode}',
+            contentType: 'AI Generated Video',
+            previewUrl: widget.videoUrl,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -335,8 +343,13 @@ class _VideoReviewScreenState extends State<VideoReviewScreen> {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
+              ReportContentTextButton(
+                contentId: 'video_${widget.videoUrl.hashCode}',
+                contentType: 'AI Generated Video',
+                previewUrl: widget.videoUrl,
+              ),
+              const SizedBox(height: 16),
 
               // Checkbox for download
               Container(

@@ -516,7 +516,72 @@ class AimrDropdown extends StatelessWidget {
   }
 }
 
-/// Dialog allowing users to report objectionable UGC or AI-generated media (Apple Guideline 1.2)
+/// Reusable Icon Button to flag/report offensive AI content (Google Play AI Policy & Apple Guideline 1.2)
+class ReportContentIconButton extends StatelessWidget {
+  final String contentId;
+  final String contentType;
+  final String? previewUrl;
+  final Color? color;
+
+  const ReportContentIconButton({
+    super.key,
+    required this.contentId,
+    required this.contentType,
+    this.previewUrl,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.flag_outlined, color: color ?? Colors.orangeAccent),
+      tooltip: 'Report offensive content',
+      onPressed: () => showReportContentDialog(
+        context,
+        contentId: contentId,
+        contentType: contentType,
+        previewUrl: previewUrl,
+      ),
+    );
+  }
+}
+
+/// Reusable Text Button to flag/report offensive AI content directly below generation outputs
+class ReportContentTextButton extends StatelessWidget {
+  final String contentId;
+  final String contentType;
+  final String? previewUrl;
+
+  const ReportContentTextButton({
+    super.key,
+    required this.contentId,
+    required this.contentType,
+    this.previewUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      icon: const Icon(Icons.flag_outlined, color: Colors.orangeAccent, size: 15),
+      label: Text(
+        'Report or flag offensive AI content',
+        style: AppFonts.poppins(
+          size: 11,
+          color: AppColors.muted,
+          decoration: TextDecoration.underline,
+        ),
+      ),
+      onPressed: () => showReportContentDialog(
+        context,
+        contentId: contentId,
+        contentType: contentType,
+        previewUrl: previewUrl,
+      ),
+    );
+  }
+}
+
+/// Dialog allowing users to report objectionable UGC or AI-generated media (Google Play AI Policy & Apple Guideline 1.2)
 Future<void> showReportContentDialog(
   BuildContext context, {
   required String contentId,
@@ -524,11 +589,12 @@ Future<void> showReportContentDialog(
   String? previewUrl,
 }) async {
   final reasons = [
-    'Inappropriate or sexually explicit',
+    'Sexually explicit or inappropriate',
     'Violence, hate speech, or harassment',
+    'Dangerous, harmful, or illegal content',
     'Intellectual property infringement',
     'Spam, misleading, or fraudulent',
-    'Other objectionable content',
+    'Other offensive AI content',
   ];
   String selectedReason = reasons.first;
   final TextEditingController detailsCtrl = TextEditingController();

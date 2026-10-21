@@ -110,7 +110,14 @@ class _EditReviewScreenState extends State<EditReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: AimrAppBar(actions: []),
+      appBar: AimrAppBar(
+        actions: [
+          ReportContentIconButton(
+            contentId: 'edited_${widget.editedFile.path.hashCode}',
+            contentType: 'AI Edited Image',
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -172,7 +179,12 @@ class _EditReviewScreenState extends State<EditReviewScreen> {
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
+              ReportContentTextButton(
+                contentId: 'edited_${widget.editedFile.path.hashCode}',
+                contentType: 'AI Edited Image',
+              ),
+              const SizedBox(height: 16),
 
               // Checkbox for download
               Container(

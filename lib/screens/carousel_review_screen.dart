@@ -131,7 +131,15 @@ class _CarouselReviewScreenState extends State<CarouselReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0A),
-      appBar: const AimrAppBar(actions: []),
+      appBar: AimrAppBar(
+        actions: [
+          ReportContentIconButton(
+            contentId: 'carousel_${widget.carousel.hashCode}',
+            contentType: 'AI Generated Carousel',
+            previewUrl: widget.carousel.slides.isNotEmpty ? widget.carousel.slides.first.backgroundImageUrl : null,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -214,8 +222,13 @@ class _CarouselReviewScreenState extends State<CarouselReviewScreen> {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
+              ReportContentTextButton(
+                contentId: 'carousel_${widget.carousel.hashCode}',
+                contentType: 'AI Generated Carousel',
+                previewUrl: widget.carousel.slides.isNotEmpty ? widget.carousel.slides.first.backgroundImageUrl : null,
+              ),
+              const SizedBox(height: 16),
 
               // Checkbox for download
               Container(

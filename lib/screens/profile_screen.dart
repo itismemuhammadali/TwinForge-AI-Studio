@@ -421,6 +421,17 @@ class ProfileScreen extends StatelessWidget {
                     subtitle: 'Get assistance',
                     onTap: () => _push(context, const HelpSupportScreen()),
                   ),
+                  const SizedBox(height: 12),
+                  _menuItem(
+                    icon: Icons.flag_outlined,
+                    title: 'Report Offensive Content',
+                    subtitle: 'Flag objectionable AI-generated media',
+                    onTap: () => showReportContentDialog(
+                      context,
+                      contentId: 'profile_menu_report',
+                      contentType: 'In-App Content Report',
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   // Data & AI Consent Section (Apple Guidelines 5.1.1(i) & 5.1.2(i))

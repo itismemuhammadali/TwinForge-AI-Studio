@@ -175,6 +175,13 @@ class _TalkingHeadVideoReviewScreenState extends State<TalkingHeadVideoReviewScr
           ),
         ),
         centerTitle: true,
+        actions: [
+          ReportContentIconButton(
+            contentId: 'talking_head_${widget.videoUrl.hashCode}',
+            contentType: 'AI Generated Talking Head Video',
+            previewUrl: widget.videoUrl,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -344,6 +351,13 @@ class _TalkingHeadVideoReviewScreenState extends State<TalkingHeadVideoReviewScr
 
             const SizedBox(height: 28),
 
+            const SizedBox(height: 12),
+            ReportContentTextButton(
+              contentId: 'talking_head_${widget.videoUrl.hashCode}',
+              contentType: 'AI Generated Talking Head Video',
+              previewUrl: widget.videoUrl,
+            ),
+            const SizedBox(height: 16),
             // BUTTON TO GO TO AUDIO RECORDING / VOICE CLONING SCREEN (SHOWN ONLY BEFORE STITCHING)
             if (!_hasAudioStitched) ...[
               SizedBox(

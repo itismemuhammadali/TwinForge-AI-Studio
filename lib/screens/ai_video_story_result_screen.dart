@@ -177,6 +177,13 @@ class _AiVideoStoryResultScreenState extends State<AiVideoStoryResultScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          ReportContentIconButton(
+            contentId: 'story_${widget.videoUrl.hashCode}',
+            contentType: 'AI Video Story',
+            previewUrl: widget.videoUrl,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -320,7 +327,13 @@ class _AiVideoStoryResultScreenState extends State<AiVideoStoryResultScreen> {
               ),
             ),
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 12),
+            ReportContentTextButton(
+              contentId: 'story_${widget.videoUrl.hashCode}',
+              contentType: 'AI Video Story',
+              previewUrl: _currentVideoUrl,
+            ),
+            const SizedBox(height: 16),
 
             // MAIN BUTTON: TURN INTO TALKING HEAD
             SizedBox(

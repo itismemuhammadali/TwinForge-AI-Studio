@@ -171,6 +171,13 @@ class _BrollVideoReviewScreenState extends State<BrollVideoReviewScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          ReportContentIconButton(
+            contentId: 'broll_${widget.videoUrl.hashCode}',
+            contentType: 'AI Generated B-Roll Video',
+            previewUrl: widget.videoUrl,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -318,7 +325,13 @@ class _BrollVideoReviewScreenState extends State<BrollVideoReviewScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
+            ReportContentTextButton(
+              contentId: 'broll_${widget.videoUrl.hashCode}',
+              contentType: 'AI Generated B-Roll Video',
+              previewUrl: _currentVideoUrl,
+            ),
+            const SizedBox(height: 16),
 
             // BUTTON TO TURN B-ROLL VIDEO INTO TALKING HEAD
             SizedBox(
